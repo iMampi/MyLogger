@@ -1,7 +1,8 @@
 import tkinter as tk
 from tkinter import ttk
 import datetime as dt
-from pprint import pprint
+import csv, os
+
 #todo : change readonly to the correct one
 #todo : "les gens concerné" fix the boolvar
 #todo : arrange display. it is centered, we dont want that
@@ -10,6 +11,7 @@ from pprint import pprint
 class MyData:
     #todo : value o flist to save in csv. so they  will be load from csv
     def __init__ (self):
+        self.filename="database_mylogger.csv"
         self.list_name=["Estelle","Mampi","Mario","Williamson","Santatra"]
         self.list_societe=["Roche Noire","Directimmo","Troc & Cash","MKR Property","Wave"]
         self.fields={"Ref":{"type":'Entry',
@@ -39,45 +41,96 @@ class MyData:
                        "modification":{"visible":True,"state":"tk.Normal"}
                          }
                     }
+        
+    def save_entry(self,data):
+        newfile= not os.path.exists(self.filename)
+        if newfile:
+            with open(self.filename, 'w', newline='') as fh:
+                csvwriter = csv.DictWriter(fh,
+                                           fieldnames=[x for x in self.fields.keys()],
+                                           delimiter=";"
+                                           )
+                csvwriter.writeheader()
+        with open(self.filename, 'a',newline='') as fh:
+                csvwriter = csv.DictWriter(fh,
+                                           fieldnames=[x for x in self.fields.keys()],
+                                           delimiter=";"
+                                           )
+                csvwriter.writerow(data)
+
+    def load_records(self, rownum=None):
+        existfile = os.path.exists(self.filename)
+        if existfile:
+            with open(self.filename, 'r',newline='') as fh:
+                csvreader = csv.DictReader(fh,
+                                           delimiter=";"
+                                           )
+                if len(set(csvreader.fieldnames) -
+                       set([x for x in self.data.keys() if self.data[x]['csvheader']])) == 0 :
+                    print('Data base is ok.')
+
+                    data = list(csvreader)
+                else:
+                    raise Exception('Error in the CSV file')
+                    return
+            if rownum==None:
+                return data
+            else:
+                return data[int(rownum)-1]
+        else:
+            #todo : add this branch in all load:
+            #todo : message box about creating a database
+            csvheaders=MyInfos.data.keys()
+            empty_data= {key : '' for key in csvheaders}
+            self.save_record(empty_data, rownum=None)
+            self.load_records()
+
+        
 
 ##WIDGETS##
 class TtkText(ttk.Entry):
     def __init__(self,parent=None,borderwidth=0.5,relief='solid',**kwargs):
         super().__init__(parent,'text',borderwidth=0.5,relief='solid',**kwargs)
         
-class LabelEntry:
+class LabelEntry(tk.Frame):
     #todo: make it so it deal with tk.text too
     def __init__(self,parent,label,**kwargs):
+        super().__init__(parent,**kwargs)
         self.var=tk.StringVar()
-        self.MyFrame=tk.Frame(parent)
-        self.MyLabel=ttk.Label(self.MyFrame,text=label)
+        self.MyLabel=ttk.Label(self,text=label)
         if parent.data.fields[label]['type']=='Entry':
-            self.MyEntry=ttk.Entry(self.MyFrame,textvariable=self.var,**kwargs)
+            self.MyEntry=ttk.Entry(self,textvariable=self.var,**kwargs)
         else:
-            self.MyEntry=TtkText(self.MyFrame)
-        sep=ttk.Separator(self.MyFrame,orient="horizontal")
+            self.MyEntry=TtkText(self,height=5)
+        self.sep=ttk.Separator(self,orient="horizontal")
 
-        self.MyLabel.grid(row=0,column=0)
-        sep.grid(row=1,column=0,sticky="WE")
-        self.MyEntry.grid(row=2,column=0)
-
-    def grid(self,*args,row=None,column=None,**kwargs):
-        self.MyFrame.grid(*args,row=row,column=column,**kwargs)
         
-class LabelCheckbutton:
-    def __init__(self,parent,label,chckbt_labels=None):
+
+    def grid(self,row=None,column=None,sticky='we',**kwargs):
+        super().grid(sticky='we',**kwargs)
+        self.MyLabel.grid(row=0,column=0)
+        self.sep.grid(row=1,column=0,sticky=sticky)
+        self.MyEntry.grid(row=2,column=0,sticky=sticky)
+        self.columnconfigure(0,weight=1)
+        
+        #self.grid(row=row,column=column,sticky=sticky,**kwargs)
+        
+class LabelCheckbutton(tk.Frame):
+    def __init__(self,parent,label,chckbt_labels=None,**kwargs):
+        super().__init__(parent,**kwargs)
         if isinstance(chckbt_labels,list):
             self.chckbt_labels=chckbt_labels
         else:
             raise Error("kwargs labels only takes list")
         
-        self.MyFrame=tk.Frame(parent)
-        self.MyLabel=ttk.Label(self.MyFrame,text=label)
+        self.MyLabel=ttk.Label(self,text=label)
+        self.sep=ttk.Separator(self,orient="horizontal")
+        self.FrameCheck=tk.Frame(self)
+        
         self.MyLabel.grid(row=0,column=0)
-        sep=ttk.Separator(self.MyFrame,orient="horizontal")
-        sep.grid(row=1,column=0,sticky="WE")
-        self.FrameCheck=tk.Frame(self.MyFrame)
+        self.sep.grid(row=1,column=0,sticky='we')
         self.FrameCheck.grid(row=2,column=0)
+        
 
         
         """creating multiple var"""
@@ -86,6 +139,7 @@ class LabelCheckbutton:
         for chckbt_label in chckbt_labels:
             newvar=chckbt_label
             self.dict_var[newvar]=tk.IntVar(value=0)
+        
 
         self.dict_chckbt={}
         for num,chckbt_label in enumerate(self.chckbt_labels):
@@ -93,8 +147,15 @@ class LabelCheckbutton:
             self.dict_chckbt[chckbt_label]=ttk.Checkbutton(self.FrameCheck,text=chckbt_label,variable=self.dict_var[chckbt_label])
             self.dict_chckbt[chckbt_label].grid(row=0,column=num)
             
-    def grid(self,row=None,column=None,**kwargs):
-        self.MyFrame.grid(row=row,column=column,**kwargs)
+    def grid(self,row=None,column=None,sticky='WE',**kwargs):
+        super().grid(sticky=sticky,**kwargs)
+        self.columnconfigure(0,weight=1)
+        
+
+
+
+
+        #self.grid(row=row,column=column,sticky=sticky,**kwargs)
 
     def calling(self):
         pass
@@ -114,14 +175,18 @@ class MyView(tk.Frame):
                 self.Fields[field]=LabelEntry(self,field)
                 #self.Fields[field].grid(row=num,column=0,rowspan=1)
             elif self.data.fields[field]['type']=='Checkbox':
-                self.Fields[field]=LabelCheckbutton(self,field,chckbt_labels=self.data.fields[field]['list_name'])
+                self.Fields[field]=LabelCheckbutton(self,field,
+                                                    chckbt_labels=self.data.fields[field]['list_name'])
                 #self.Fields[field].grid(row=num,column=0,rowspan=1)
             #elif self.data.fields[field]['type']=='Text':
                 #self.Fields[field]=TtkText(self)
                 #self.Fields[field]=ttk.Entry(self,textvariable=tk.StringVar())
                 #self.Fields[field].grid(row=num,column=0,rowspan=1)
 
-            self.Fields[field].grid(row=num,column=0)
+            print("field:")
+            print (self.Fields[field])
+            self.Fields[field].grid(row=num,column=0,sticky='we')
+        self.columnconfigure(0,weight=1)
 
 
             
@@ -156,7 +221,9 @@ if __name__=='__main__':
     
     mdt=MyData()
     mv=MyView(root,mdt)
-    mv.grid(row=0,column=0)
+    mv.grid(row=0,column=0,sticky='we')
+    #mv.columnconfigure(0,weight=1)
+    root.columnconfigure(0,weight=1)
     
     root.mainloop()
 
