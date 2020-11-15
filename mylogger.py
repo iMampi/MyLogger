@@ -8,6 +8,7 @@ import csv, os
 #todo : arrange display. it is centered, we dont want that
 #todo : arrange size of ain window
 
+##BASE##
 class MyData:
     #todo : value o flist to save in csv. so they  will be load from csv
     def __init__ (self):
@@ -170,7 +171,7 @@ class LabelCheckbutton(tk.Frame):
 
 
 
-##View##
+##VIEW##
 class MyView(tk.Frame):
     def __init__(self,parent,data,commands):
         super().__init__(parent)
@@ -193,6 +194,9 @@ class MyView(tk.Frame):
             #print("field:")
             #print (self.Fields[field])
             self.Fields[field].grid(row=num,column=0,sticky='we')
+
+
+        self.button_add=ttk.Button(self,text='+',command=self.commands['add'])    
         self.columnconfigure(0,weight=1)
         self.button_save=ttk.Button(self,text='Save',command=self.commands['save_entry'])
         self.button_save.grid(row=10,column=0,sticky='e')
@@ -202,7 +206,15 @@ class MyView(tk.Frame):
         for field,widget in self.Fields.items():
             data[field]=widget.get()
         return data
-        
+
+class WidgetAdd(tk.Frame):
+    def __init__(self,parent):
+        super().__init__(parent)
+        self.MyEntry=ttk.Entry(self,textvariable=tk.StringVar())
+        self.MyEntry.grid(row=0,column=0,sticky='we')
+        self.MyButton=ttk.Button(self,text='Save')
+        self.MyButton.grid(row=1,column=0,sticky='e')
+        self.columnconfigure(0,weight=1)
 
 
             
@@ -213,7 +225,7 @@ class MyView(tk.Frame):
             
             
         
-
+##CONTROLER##
 class MyApplication(tk.Tk):
     def __init__(self,*args,**kwargs):
         super().__init__(*args,**kwargs)
@@ -234,6 +246,11 @@ class MyApplication(tk.Tk):
 
     def load_records(self):
         pass
+
+    def add(self):
+        top=WidgetAdd()
+        
+        
     
 
 if __name__=='__main__':
