@@ -58,7 +58,7 @@ class MyData:
                                            )
                 csvwriter.writerow(data)
 
-    def load_records(self, rownum=None):
+    def load_records(self):
         existfile = os.path.exists(self.filename)
         if existfile:
             with open(self.filename, 'r',newline='') as fh:
@@ -66,23 +66,24 @@ class MyData:
                                            delimiter=";"
                                            )
                 if len(set(csvreader.fieldnames) -
-                       set([x for x in self.data.keys() if self.data[x]['csvheader']])) == 0 :
+                       set([x for x in self.fields.keys()])) == 0 :
                     print('Data base is ok.')
 
                     data = list(csvreader)
                 else:
                     raise Exception('Error in the CSV file')
                     return
-            if rownum==None:
+            
                 return data
-            else:
-                return data[int(rownum)-1]
+            
         else:
             #todo : add this branch in all load:
             #todo : message box about creating a database
-            csvheaders=MyInfos.data.keys()
-            empty_data= {key : '' for key in csvheaders}
-            self.save_record(empty_data, rownum=None)
+            print('No Database. Creating one')
+            
+            empty_data= {key : '' for key in self.fields.keys()}
+            self.save_entry(empty_data)
+            print('Database created.')
             self.load_records()
 
         
@@ -114,6 +115,9 @@ class LabelEntry(tk.Frame):
         self.columnconfigure(0,weight=1)
         
         #self.grid(row=row,column=column,sticky=sticky,**kwargs)
+
+    def get(self):
+        return self.MyEntry.get()
         
 class LabelCheckbutton(tk.Frame):
     def __init__(self,parent,label,chckbt_labels=None,**kwargs):
@@ -131,8 +135,6 @@ class LabelCheckbutton(tk.Frame):
         self.sep.grid(row=1,column=0,sticky='we')
         self.FrameCheck.grid(row=2,column=0)
         
-
-        
         """creating multiple var"""
         #todo : to refactor
         self.dict_var={}
@@ -140,7 +142,7 @@ class LabelCheckbutton(tk.Frame):
             newvar=chckbt_label
             self.dict_var[newvar]=tk.IntVar(value=0)
         
-
+        """creating multiple checkboxes"""
         self.dict_chckbt={}
         for num,chckbt_label in enumerate(self.chckbt_labels):
             
@@ -150,6 +152,10 @@ class LabelCheckbutton(tk.Frame):
     def grid(self,row=None,column=None,sticky='WE',**kwargs):
         super().grid(sticky=sticky,**kwargs)
         self.columnconfigure(0,weight=1)
+
+    def get(self):
+        return [self.dict_var[x].get() for x in self.dict_var]
+        
         
 
 
@@ -166,9 +172,10 @@ class LabelCheckbutton(tk.Frame):
 
 ##View##
 class MyView(tk.Frame):
-    def __init__(self,parent,data):
+    def __init__(self,parent,data,commands):
         super().__init__(parent)
         self.data=data
+        self.commands=commands
         self.Fields={}
         for num,field in enumerate(self.data.fields.keys()):
             if self.data.fields[field]['type'] in ['Entry','Text']:
@@ -183,10 +190,19 @@ class MyView(tk.Frame):
                 #self.Fields[field]=ttk.Entry(self,textvariable=tk.StringVar())
                 #self.Fields[field].grid(row=num,column=0,rowspan=1)
 
-            print("field:")
-            print (self.Fields[field])
+            #print("field:")
+            #print (self.Fields[field])
             self.Fields[field].grid(row=num,column=0,sticky='we')
         self.columnconfigure(0,weight=1)
+        self.button_save=ttk.Button(self,text='Save',command=self.commands['save_entry'])
+        self.button_save.grid(row=10,column=0,sticky='e')
+
+    def get(self):
+        data={}
+        for field,widget in self.Fields.items():
+            data[field]=widget.get()
+        return data
+        
 
 
             
@@ -198,8 +214,28 @@ class MyView(tk.Frame):
             
         
 
+class MyApplication(tk.Tk):
+    def __init__(self,*args,**kwargs):
+        super().__init__(*args,**kwargs)
+        self.mdt=MyData()
+        self.commands={'save_entry' : self.save_entry,
+                       'load_records' : self.load_records
+                       }
+        self.mv=MyView(self,self.mdt,self.commands)
+        
 
-root=tk.Tk()
+        self.mv.grid(row=0,column=0,sticky='nswe')
+        self.columnconfigure(0,weight=1)
+
+    def save_entry(self,data):
+        
+        self.mdt.save_entry(self.mv.get())
+        
+
+    def load_records(self):
+        pass
+    
+
 if __name__=='__main__':
 ##    mdt=MyData()
 ##    lc=LabelCheckbutton(root,'Les gens concernés',chckbt_labels=mdt.fields['Les gens concernés']["list_name"])
@@ -219,13 +255,16 @@ if __name__=='__main__':
     #print(cb_stylename)
     #pprint(cb_layout)
     
-    mdt=MyData()
-    mv=MyView(root,mdt)
-    mv.grid(row=0,column=0,sticky='we')
-    #mv.columnconfigure(0,weight=1)
-    root.columnconfigure(0,weight=1)
+##    mdt=MyData()
+##    mv=MyView(root,mdt,{})
+##    mv.grid(row=0,column=0,sticky='we')
+##    
+##    root.columnconfigure(0,weight=1)
+##    root.mainloop()
+    app=MyApplication()
+    app.mainloop()
     
-    root.mainloop()
+    
 
         
     
