@@ -23,12 +23,12 @@ class MyData:
         
 
         self.fields={"Ref":{"type":'Entry',
-                       "creation":{"visible":True,"state":"tk.Normal"},
+                       "creation":{"visible":True,"state":"normal"},
                        "modification":{"visible":True,"state":"tk.ReadOnly"}
                            },
                 "Date":{"type":'DateEntry',
                        "creation":{"visible":True,"state":"tk.Normal"},
-                       "modification":{"visible":True,"state":"tk.ReadOnly"}
+                       "modification":{"visible":True,"state":"tk.Disabled"}
                        },
                 "Note":{"type":'Text',
                        "creation":{"visible":True,"state":"tk.Normal"},
@@ -240,16 +240,18 @@ class LabelEntry(tk.Frame):
         
 
     def grid(self,row=None,column=None,sticky='we',**kwargs):
-        super().grid(sticky='we',**kwargs)
+        super().grid(row=row,column=column,sticky='we',**kwargs)
         self.MyLabel.grid(row=0,column=0,sticky='w')
         self.sep.grid(row=1,column=0,sticky=sticky)
         self.MyEntry.grid(row=2,column=0,sticky=sticky)
         self.columnconfigure(0,weight=1)
         
-        #self.grid(row=row,column=column,sticky=sticky,**kwargs)
 
     def get(self):
-        return self.MyEntry.get()
+        if parent.data.fields[label]['type'] in ('Entry','DateEntry'):
+            return self.MyEntry.get()
+        else:
+            return self.MyEntry.get('1.0', tk.END)
 
     def set(self,newvalue,*args,**kwargs):
         self.var.set(newvalue,*args,**kwargs)
@@ -302,10 +304,18 @@ class LabelCheckbutton(tk.Frame):
         self.columnconfigure(0,weight=1)
 
     def get(self):
-        return [self.dict_var[x].get() for x in self.dict_var]
+        #return [self.dict_var[x].get() for x in self.dict_var]
+        """return a dict"""
+        data={}
+        for name,var in self.dict_var.items():
+            data[name]=var.get()
+        return data
 
-    def set(self,dictvalue):
-        pass
+    def set(self,dict_value):
+        #todo : add a len checker
+        """dict value must be a dict """
+        for name,value in dict_value.items:
+            self.dict_var[name].set(value)
 
     def calling(self):
         pass
@@ -325,7 +335,7 @@ class MyView(tk.Frame):
             elif self.data.fields[field]['type']=='Checkbox':
                 self.Fields[field]=LabelCheckbutton(self,field,
                                                     chckbt_labels=self.data.fields[field]['list_name'])
-            self.Fields[field].grid(row=num,column=0,sticky='we')
+            self.Fields[field].grid(row=num,column=0,sticky='we',pady=2)
 
 
         self.button_add=ttk.Button(self,text='+',command=self.commands['add'])
@@ -339,6 +349,25 @@ class MyView(tk.Frame):
         for field,widget in self.Fields.items():
             data[field]=widget.get()
         return data
+
+    def set(self,data):
+        """data must be a dict"""
+        for field,value in data.items():
+            data[field].set(value)
+
+    def reset(self):
+        for field,widget in self.Fields.items():
+            if field in ('Ref','Date','Alarme'):
+                widget.delete(0,tk.END)
+            elif field == 'Note':
+                widget.delete('1.0',tk.END)
+            else:
+                for var in widget.dict_var:
+                    var.set(0)
+                
+            
+        
+        
 
 class WidgetAdd(tk.Frame):
     def __init__(self,parent):
@@ -354,6 +383,7 @@ class WidgetAdd(tk.Frame):
 class MyApplication(tk.Tk):
     def __init__(self,*args,**kwargs):
         super().__init__(*args,**kwargs)
+        self.mode=None
         self.mdt=MyData()
         self.commands={'save_entry' : self.save_entry,
                        'load_records' : self.load_records,
@@ -382,7 +412,6 @@ class MyApplication(tk.Tk):
         
         self.mdt.save_entry(self.mv.get())
         
-
     def load_records(self):
         pass
 
