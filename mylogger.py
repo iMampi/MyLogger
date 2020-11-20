@@ -5,13 +5,14 @@ from tkcalendar import *
 import csv, os, json
 
 #todo : change readonly to the correct one
-#todo : "les gens concerné" fix the boolvar
-#todo : arrange display. it is centered, we dont want that
-#todo : arrange size of ain window
+#todo : add "select all" for chackbox label
+#todo : implement messagebox
+#todo : after reset, set a new ref automatically
+#todo : arrange size of main window
 
 ##BASE##
 class MyData:
-    #todo : value o flist to save in csv. so they  will be load from csv
+    
     def __init__ (self):
         self.filename="database_mylogger.csv"
         self.list_file="list_file.json"
@@ -50,27 +51,27 @@ class MyData:
                          }
                     }
         self.new_file()
-
         self.data=self.load_records()
-        print("data show")
-        print(self.data)
         
     def new_file(self):
         """check if database exist"""
         newfile1= not os.path.exists(self.filename)
         if newfile1:
+            
             with open(self.filename, 'w', newline='') as fh:
                 csvwriter = csv.DictWriter(fh,
                                            fieldnames=[x for x in self.fields.keys()],
                                            delimiter=";"
                                            )
                 csvwriter.writeheader()
+            print('No database found. Created new database.')
                 
         """check if json list exist"""
         newfile2= not os.path.exists(self.list_file)
         if newfile2:
             with open(self.list_file,'w') as fh:
                 json.dump({'list_name':self.list_name,'list_societe':self.list_societe},fh)
+            print('No datalist found. Created new datalist.')
 
         
     def save_entry(self,data):
@@ -81,27 +82,39 @@ class MyData:
                                            delimiter=";"
                                            )
                 csvwriter.writerow(data)
-
+        """
+NOTE : here we can only use the csviterator once, because csv.DictReader return
+a iterator. once it has been fully read (so the pointer goes to the end of the list,
+it has no reason to exist anymore. it has done his job as a iterator.
+what you can do to read it multiple time is :
+    -design the algorythm so it is only used once;
+    -make a copy of the iterator in memory (this is what we did here)
+    -use itertool.tee (see documentation online)
     def load_records(self):
         existfile = os.path.exists(self.filename)
         if existfile:
             with open(self.filename, 'r',newline='') as fh:
-                csvreader = csv.DictReader(fh,
+                csviterator = csv.DictReader(fh,
                                            delimiter=";"
                                            )
-                print("csv vide :")
-                print(list(csvreader))
-                if len(list(csvreader))==0:
-                    data = list(csvreader)
-                elif len(set(csvreader.fieldnames) -
-                       set([x for x in self.fields.keys()])) == 0 :
+                csvcopy=list(csviterator)
+                if len(list(csvcopy))==0:
+                    data = []
+                elif len(set(csviterator.fieldnames) -
+                    set([x for x in self.fields.keys()])) == 0 :
                     print('Data base is ok.')
-
-                    data = list(csvreader)
+                    print('set test')
+                    print(set(csviterator.fieldnames))
+                    print(set([x for x in self.fields.keys()]))
+                    print(csvcopy)
+                    data = csvcopy
+                    print(data)
                 else:
+                    print("exception")
                     raise Exception('Error in the CSV file')
                     return
-            
+                print('last data')
+                print(data)
                 return data
             
         else:
@@ -111,6 +124,31 @@ class MyData:
             self.new_file()
             print('Database created.')
             self.load_records()
+        """
+    def load_records(self):
+        existfile = os.path.exists(self.filename)
+        if not existfile:
+            self.newfile()
+            return []
+        
+        
+        with open(self.filename, 'r',newline='') as fh:
+            csvreader = csv.DictReader(fh,
+                                    delimiter=";"
+                                    )
+            missing_fields = set(csvreader.fieldnames) - \
+                    set([x for x in self.fields.keys()])
+            
+            if len(missing_fields) > 0:
+                raise Exception(
+                    "File is missing fields: {}"
+                    .format(', '.join(missing_fields))
+                                )
+
+            else:
+                data =list(csvreader)
+                return data
+            
 
     def save_lists(self):
         with open(self.list_file,'w') as fh:
@@ -221,12 +259,17 @@ class MyDateEntry(tk.Frame):
 
     def grid(self,row=None,column=None,**kwargs):
         super().grid(row=row,column=column,**kwargs)
+
+    def delete(self,first,last=tk.END):
+        self.entry.delete(first,last)
         
         
 class LabelEntry(tk.Frame):
     #todo: make it so it deal with tk.text too
     def __init__(self,parent,label,**kwargs):
         super().__init__(parent,**kwargs)
+        self.parent=parent
+        self.label=label
         self.var=tk.StringVar()
         self.MyLabel=ttk.Label(self,text=label)
         if parent.data.fields[label]['type']=='Entry':
@@ -234,10 +277,10 @@ class LabelEntry(tk.Frame):
         elif parent.data.fields[label]['type']=='DateEntry':
             self.MyEntry=MyDateEntry(self,textvariable=self.var,**kwargs)    
         else:
-            self.MyEntry=TtkText(self,height=5)
+            #self.MyEntry=TtkText(self,height=5)
+            self.MyEntry=tk.Text(self,height=5,borderwidth=0.5,relief='solid')
         self.sep=ttk.Separator(self,orient="horizontal")
 
-        
 
     def grid(self,row=None,column=None,sticky='we',**kwargs):
         super().grid(row=row,column=column,sticky='we',**kwargs)
@@ -248,9 +291,12 @@ class LabelEntry(tk.Frame):
         
 
     def get(self):
-        if parent.data.fields[label]['type'] in ('Entry','DateEntry'):
+        print(self.parent.data.fields[self.label]['type'])
+        if self.parent.data.fields[self.label]['type'] in ('Entry','DateEntry'):
+            print(self.MyEntry.get())
             return self.MyEntry.get()
         else:
+            print(self.MyEntry.get('1.0', tk.END))
             return self.MyEntry.get('1.0', tk.END)
 
     def set(self,newvalue,*args,**kwargs):
@@ -358,11 +404,11 @@ class MyView(tk.Frame):
     def reset(self):
         for field,widget in self.Fields.items():
             if field in ('Ref','Date','Alarme'):
-                widget.delete(0,tk.END)
+                widget.MyEntry.delete(0,tk.END)
             elif field == 'Note':
-                widget.delete('1.0',tk.END)
+                widget.MyEntry.delete('1.0',tk.END)
             else:
-                for var in widget.dict_var:
+                for var in widget.dict_var.values():
                     var.set(0)
                 
             
@@ -385,6 +431,12 @@ class MyApplication(tk.Tk):
         super().__init__(*args,**kwargs)
         self.mode=None
         self.mdt=MyData()
+##        self.data=self.mdt.load_records()
+##        print("data show")
+##        print(self.data)
+##
+##        print(self.mdt.load_records())
+        #self.data=self.mdt.data
         self.commands={'save_entry' : self.save_entry,
                        'load_records' : self.load_records,
                        'add' : self.add
@@ -396,21 +448,25 @@ class MyApplication(tk.Tk):
         self.mv.Fields['Date'].set(td.strftime("%d/%m/%Y"))
 
         """auto fill ref"""
+        #print(self.mdt.data)
+        #print(len(self.mdt.data))
         if len(self.mdt.data)==0:
             newref = "ref0001"
         else :
-            lastref = mdt.data[-1]
+            lastref = self.mdt.data[-1]['Ref']
             refnum=lastref.split('ref')[1]
             newnum=int(refnum)+1
             newref='ref'+str('{:04d}'.format(newnum))
+        print(newref)
         self.mv.Fields['Ref'].set(newref)
             
         self.mv.grid(row=0,column=0,sticky='nswe',padx=5,pady=5)
         self.columnconfigure(0,weight=1)
 
-    def save_entry(self,data):
+    def save_entry(self):
         
         self.mdt.save_entry(self.mv.get())
+        self.mv.reset()
         
     def load_records(self):
         pass
