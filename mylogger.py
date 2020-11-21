@@ -38,12 +38,14 @@ class MyData:
                 "Les gens concernés":{"type":'Checkbox',
                                       "creation":{"visible":True,"state":"tk.Normal"},
                                       "modification":{"visible":True,"state":"tk.Disabled"},
-                                      "list_name":self.list_name
+                                      "list_name":self.list_name,
+                                      "command":"add_name"
                                       },
                 "Sociétés/Personnel":{"type":'Checkbox',
                                       "creation":{"visible":True,"state":"tk.Normal"},
                                       "modification":{"visible":True,"state":"tk.Disabled"},
-                                      "list_name":self.list_societe
+                                      "list_name":self.list_societe,
+                                      "command":"add_societe"
                                      },
                 "Alarme":{"type":'DateEntry',
                        "creation":{"visible":True,"state":"tk.Normal"},
@@ -320,30 +322,60 @@ class LabelCheckbutton(tk.Frame):
         self.MyLabel.grid(row=0,column=0,sticky='w')
         self.sep.grid(row=1,column=0,sticky='we')
         self.FrameCheck.grid(row=2,column=0,sticky='w')
-        
+
+        self.dict_var={}
+        self.dict_chckbt={}
+        self.button_add=ttk.Button(self.FrameCheck,
+                                       text="+",
+                                       command=self.add_new,
+                                       width=3,
+                                       )
+        self.generate_chckbt()
+
+    def generate_chckbt(self):
         """creating multiple var"""
         #todo : to refactor
-        self.dict_var={}
         for chckbt_label in self.chckbt_labels:
             newvar=chckbt_label
-            self.dict_var[newvar]=tk.IntVar(value=0)
+            if newvar not in self.dict_var.keys():
+                self.dict_var[newvar]=tk.IntVar(value=0)
         
         """creating multiple checkboxes"""
-        self.dict_chckbt={}
         for num,chckbt_label in enumerate(self.chckbt_labels):
-            
-            self.dict_chckbt[chckbt_label]=ttk.Checkbutton(self.FrameCheck,
+            if chckbt_label not in self.dict_chckbt.keys():
+                self.dict_chckbt[chckbt_label]=ttk.Checkbutton(self.FrameCheck,
                                                            text=chckbt_label,
                                                            variable=self.dict_var[chckbt_label])
-            self.dict_chckbt[chckbt_label].grid(row=0,column=num)
+                self.dict_chckbt[chckbt_label].grid(row=0,column=num)
 
-        self.button_add=ttk.Button(self.FrameCheck,
-                                   text="+",
-                                   command= self.calling,
-                                   width=3,
-                                   )
-        
-        self.button_add.grid(row=0,column=len(self.chckbt_labels)+1,ipady=1, ipadx=0)
+        self.button_add.grid_forget()
+        self.button_add.grid(row=0,
+                            column=len(self.chckbt_labels)+1,
+                            ipady=1, ipadx=0
+                            )
+
+    class WidgetAdd(tk.Frame):
+        def __init__(self,parent,outer_instance):
+            super().__init__(parent)
+            """create an attribut to store the outer instance, so we can acces it later"""
+            self.outer_instance=outer_instance
+            self.parent=parent
+            self.MyVar=tk.StringVar()
+            self.MyEntry=ttk.Entry(self,textvariable=self.MyVar)
+            self.MyEntry.grid(row=0,column=0,sticky='we')
+            self.MyButton=ttk.Button(self,text='Save',command=self.save_new)
+            self.MyButton.grid(row=1,column=0,sticky='e')
+            self.columnconfigure(0,weight=1)
+
+        def get(self):
+            return self.MyVar.get()
+
+        def save_new(self):
+            new=self.get()
+            self.outer_instance.chckbt_labels.append(new)
+            self.outer_instance.generate_chckbt()
+            self.parent.destroy()
+            self.outer_instance.update()
             
     def grid(self,row=None,column=None,sticky='WE',**kwargs):
         super().grid(row=row,column=column,sticky=sticky,**kwargs)
@@ -363,8 +395,10 @@ class LabelCheckbutton(tk.Frame):
         for name,value in dict_value.items:
             self.dict_var[name].set(value)
 
-    def calling(self):
-        pass
+    def add_new(self):
+        self.top=tk.Toplevel(self)
+        self.wa=self.WidgetAdd(self.top,self)
+        self.wa.grid(row=0,column=0,sticky='nswe')
 
 ##VIEW##
 class MyView(tk.Frame):
@@ -383,9 +417,6 @@ class MyView(tk.Frame):
                                                     chckbt_labels=self.data.fields[field]['list_name'])
             self.Fields[field].grid(row=num,column=0,sticky='we',pady=2)
 
-
-        self.button_add=ttk.Button(self,text='+',command=self.commands['add'])
-        #self.button_add.grid(row=,column=
         self.columnconfigure(0,weight=1)
         self.button_save=ttk.Button(self,text='Save',command=self.commands['save_entry'])
         self.button_save.grid(row=10,column=0,sticky='e')
@@ -411,18 +442,10 @@ class MyView(tk.Frame):
                 for var in widget.dict_var.values():
                     var.set(0)
                 
-            
-        
-        
 
-class WidgetAdd(tk.Frame):
-    def __init__(self,parent):
-        super().__init__(parent)
-        self.MyEntry=ttk.Entry(self,textvariable=tk.StringVar())
-        self.MyEntry.grid(row=0,column=0,sticky='we')
-        self.MyButton=ttk.Button(self,text='Save')
-        self.MyButton.grid(row=1,column=0,sticky='e')
-        self.columnconfigure(0,weight=1)
+
+        
+        
 
 
 ##CONTROLER##
@@ -439,7 +462,7 @@ class MyApplication(tk.Tk):
         #self.data=self.mdt.data
         self.commands={'save_entry' : self.save_entry,
                        'load_records' : self.load_records,
-                       'add' : self.add
+                       'add_name' : self.add_name
                        }
         self.mv=MyView(self,self.mdt,self.commands)
         
@@ -471,8 +494,11 @@ class MyApplication(tk.Tk):
     def load_records(self):
         pass
 
-    def add(self):
-        top=WidgetAdd()
+    def add_name(self):
+        pass
+
+        
+        
         
         
     
