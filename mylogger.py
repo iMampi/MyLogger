@@ -38,13 +38,13 @@ class MyData:
                 "Les gens concernés":{"type":'Checkbox',
                                       "creation":{"visible":True,"state":"tk.Normal"},
                                       "modification":{"visible":True,"state":"tk.Disabled"},
-                                      "list_name":self.list_name,
+                                      "list":self.list_name,
                                       "command":"add_name"
                                       },
                 "Sociétés/Personnel":{"type":'Checkbox',
                                       "creation":{"visible":True,"state":"tk.Normal"},
                                       "modification":{"visible":True,"state":"tk.Disabled"},
-                                      "list_name":self.list_societe,
+                                      "list":self.list_societe,
                                       "command":"add_societe"
                                      },
                 "Alarme":{"type":'DateEntry',
@@ -155,6 +155,7 @@ what you can do to read it multiple time is :
     def save_lists(self):
         with open(self.list_file,'w') as fh:
             json.dump({'list_name':self.list_name,'list_societe':self.list_societe},fh)
+        print('saved lists')
             
     def load_lists(self):
         existfile = os.path.exists(self.list_file)
@@ -307,15 +308,19 @@ class LabelEntry(tk.Frame):
         
 class LabelCheckbutton(tk.Frame):
     
-    def __init__(self,parent,label,chckbt_labels=None,**kwargs):
+    def __init__(self,parent,label,model,chckbt_labels=None,**kwargs):
         
         super().__init__(parent,**kwargs)
-        if isinstance(chckbt_labels,list):
-            self.chckbt_labels=chckbt_labels
-        else:
-            raise Error("kwargs labels only takes list")
+        self.model=model
+        self.label=label
         
-        self.MyLabel=ttk.Label(self,text=label)
+        
+        if isinstance(model.fields[self.label]['list'],list):
+            self.chckbt_labels=model.fields[self.label]['list']
+        else:
+            raise Error("Wrong model, chckbt_labels only takes list")
+        
+        self.MyLabel=ttk.Label(self,text=self.label)
         self.sep=ttk.Separator(self,orient="horizontal")
         self.FrameCheck=tk.Frame(self)
         
@@ -335,6 +340,7 @@ class LabelCheckbutton(tk.Frame):
     def generate_chckbt(self):
         """creating multiple var"""
         #todo : to refactor
+
         for chckbt_label in self.chckbt_labels:
             newvar=chckbt_label
             if newvar not in self.dict_var.keys():
@@ -357,6 +363,7 @@ class LabelCheckbutton(tk.Frame):
     class WidgetAdd(tk.Frame):
         def __init__(self,parent,outer_instance):
             super().__init__(parent)
+            #todo : add more text, title, adjust padding, wiget size
             """create an attribut to store the outer instance, so we can acces it later"""
             self.outer_instance=outer_instance
             self.parent=parent
@@ -372,10 +379,15 @@ class LabelCheckbutton(tk.Frame):
 
         def save_new(self):
             new=self.get()
-            self.outer_instance.chckbt_labels.append(new)
+            #self.outer_instance.model.list_name.append(new)
+            self.outer_instance.model.fields[self.outer_instance.label]['list'].append(new)
+
             self.outer_instance.generate_chckbt()
             self.parent.destroy()
             self.outer_instance.update()
+            self.outer_instance.model.save_lists()
+
+
             
     def grid(self,row=None,column=None,sticky='WE',**kwargs):
         super().grid(row=row,column=column,sticky=sticky,**kwargs)
@@ -414,12 +426,15 @@ class MyView(tk.Frame):
                 #self.Fields[field].grid(row=num,column=0,rowspan=1)
             elif self.data.fields[field]['type']=='Checkbox':
                 self.Fields[field]=LabelCheckbutton(self,field,
-                                                    chckbt_labels=self.data.fields[field]['list_name'])
+                                                    self.data,chckbt_labels=self.data.fields[field]['list']
+                                                    )
             self.Fields[field].grid(row=num,column=0,sticky='we',pady=2)
 
         self.columnconfigure(0,weight=1)
         self.button_save=ttk.Button(self,text='Save',command=self.commands['save_entry'])
         self.button_save.grid(row=10,column=0,sticky='e')
+        self.button_print=ttk.Button(self,text='Print',command=self.commands['print_'])
+        self.button_print.grid(row=10,column=1,sticky='e')
 
     def get(self):
         data={}
@@ -454,15 +469,9 @@ class MyApplication(tk.Tk):
         super().__init__(*args,**kwargs)
         self.mode=None
         self.mdt=MyData()
-##        self.data=self.mdt.load_records()
-##        print("data show")
-##        print(self.data)
-##
-##        print(self.mdt.load_records())
-        #self.data=self.mdt.data
         self.commands={'save_entry' : self.save_entry,
                        'load_records' : self.load_records,
-                       'add_name' : self.add_name
+                       'print_' : self.print_
                        }
         self.mv=MyView(self,self.mdt,self.commands)
         
@@ -471,8 +480,6 @@ class MyApplication(tk.Tk):
         self.mv.Fields['Date'].set(td.strftime("%d/%m/%Y"))
 
         """auto fill ref"""
-        #print(self.mdt.data)
-        #print(len(self.mdt.data))
         if len(self.mdt.data)==0:
             newref = "ref0001"
         else :
@@ -494,13 +501,10 @@ class MyApplication(tk.Tk):
     def load_records(self):
         pass
 
-    def add_name(self):
-        pass
+    def print_(self):
+        print(self.var_list_name.get())
+        print(self.mv.Fields["Les gens concernés"].chckbt_labels)
 
-        
-        
-        
-        
     
 
 if __name__=='__main__':
