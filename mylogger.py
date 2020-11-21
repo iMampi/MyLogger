@@ -179,11 +179,6 @@ what you can do to read it multiple time is :
         
 
 ##WIDGETS##
-class TtkText(ttk.Entry):
-    
-    def __init__(self,parent,borderwidth=0.5,relief='solid',**kwargs):
-        
-        super().__init__(parent,'text',borderwidth=0.5,relief='solid',**kwargs)
 
 class MyDateEntry(tk.Frame):
     
@@ -412,6 +407,40 @@ class LabelCheckbutton(tk.Frame):
         self.wa=self.WidgetAdd(self.top,self)
         self.wa.grid(row=0,column=0,sticky='nswe')
 
+class ViewAll(ttk.Treeview):
+    def __init__(self,parent,model,*args,**kwargs):
+        super().__init__(parent,*args,**kwargs)
+        self.model=model
+        self.headers=self.model.fields.keys()
+        self.configure(columns=[*self.headers],show="headings")
+        
+                       
+        #self.heading('#0',text='N°')
+        #self.column('#0',minwidth=40,width=40,stretch=True)
+        #todo : remove the first column '#0'
+        for header in self.headers:
+            self.heading(header,text=header)
+            self.column(header, minwidth=40, width=80,stretch=True)
+
+        ybar=ttk.Scrollbar(self,orient="vertical",command=self.yview)
+        ybar.grid(row=0,column=1,sticky='nse')
+        xbar=ttk.Scrollbar(self,orient="horizontal",command=self.xview)
+        self.configure(yscrollcommand=ybar.set, xscrollcommand=xbar.set)
+        xbar.grid(row=1,column=0,sticky='swe')
+
+            
+    def grid(self,*args,row=None,column=None,sticky='nswe',**kwargs):
+        super().grid(*args,row=row,column=column,sticky=sticky,**kwargs)
+
+    def populate(self,data):
+        counter=0
+        for row_data in data:
+            row_values = [row_data[header] for header in self.headers ]
+            self.insert('', 'end', iid=counter, values=row_values)
+            counter += 1
+ 
+
+        
 ##VIEW##
 class MyView(tk.Frame):
     def __init__(self,parent,data,commands):
@@ -423,7 +452,6 @@ class MyView(tk.Frame):
         for num,field in enumerate(self.data.fields.keys()):
             if self.data.fields[field]['type'] in ['Entry','DateEntry','Text']:
                 self.Fields[field]=LabelEntry(self,field)
-                #self.Fields[field].grid(row=num,column=0,rowspan=1)
             elif self.data.fields[field]['type']=='Checkbox':
                 self.Fields[field]=LabelCheckbutton(self,field,
                                                     self.data,chckbt_labels=self.data.fields[field]['list']
@@ -433,7 +461,7 @@ class MyView(tk.Frame):
         self.columnconfigure(0,weight=1)
         self.button_save=ttk.Button(self,text='Save',command=self.commands['save_entry'])
         self.button_save.grid(row=10,column=0,sticky='e')
-        self.button_print=ttk.Button(self,text='Print',command=self.commands['print_'])
+        self.button_print=ttk.Button(self,text='view all',command=self.commands['print_'])
         self.button_print.grid(row=10,column=1,sticky='e')
 
     def get(self):
@@ -471,7 +499,7 @@ class MyApplication(tk.Tk):
         self.mdt=MyData()
         self.commands={'save_entry' : self.save_entry,
                        'load_records' : self.load_records,
-                       'print_' : self.print_
+                       'print_' : self.viewall
                        }
         self.mv=MyView(self,self.mdt,self.commands)
         
@@ -500,6 +528,28 @@ class MyApplication(tk.Tk):
         
     def load_records(self):
         pass
+    
+    def viewall(self):
+        self.top=tk.Toplevel(self,background='blue')
+        self.top.geometry("250x200")
+        self.top.minsize(width=250, height=200)
+        self.top.title("Historique")
+        self.top.maxsize(width=1000, height=500)
+        self.top.columnconfigure(0,weight=1)
+        self.top.rowconfigure(0,weight=1)
+
+        f=tk.Frame(self.top)
+        f.grid(row=0,column=0,sticky='nswe')
+        f.columnconfigure(0,weight=1)
+        f.rowconfigure(0,weight=1)
+        self.viewall=ViewAll(f,self.mdt)
+        self.viewall.grid(row=0,column=0,sticky='nswe')
+        self.viewall.columnconfigure(0,weight=1)
+        self.viewall.rowconfigure(0,weight=1)
+        
+        self.viewall.populate(self.mdt.load_records())
+        
+        self.top.update_idletasks()
 
     def print_(self):
         print(self.var_list_name.get())
