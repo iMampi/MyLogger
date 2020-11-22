@@ -9,6 +9,7 @@ import csv, os, json
 #todo : implement messagebox
 #todo : after reset, set a new ref automatically
 #todo : arrange size of main window
+#todo : ask confirmation when something has changed qhen quiting
 
 ##BASE##
 class MyData:
@@ -25,31 +26,32 @@ class MyData:
 
         self.fields={"Ref":{"type":'Entry',
                        "creation":{"visible":True,"state":"normal"},
-                       "modification":{"visible":True,"state":"tk.ReadOnly"}
+                       "consultation":{"visible":True,"state":"readonly"},
+                            
                            },
                 "Date":{"type":'DateEntry',
-                       "creation":{"visible":True,"state":"tk.Normal"},
-                       "modification":{"visible":True,"state":"tk.Disabled"}
+                       "creation":{"visible":True,"state":"normal"},
+                       "consultation":{"visible":True,"state":"readonly"}
                        },
                 "Note":{"type":'Text',
-                       "creation":{"visible":True,"state":"tk.Normal"},
-                       "modification":{"visible":True,"state":"tk.ReadOnly"}
+                       "creation":{"visible":True,"state":"normal"},
+                       "consultation":{"visible":True,"state":"normal"}
                        },
                 "Les gens concernés":{"type":'Checkbox',
-                                      "creation":{"visible":True,"state":"tk.Normal"},
-                                      "modification":{"visible":True,"state":"tk.Disabled"},
+                                      "creation":{"visible":True,"state":"normal"},
+                                      "consultation":{"visible":True,"state":"disabled"},
                                       "list":self.list_name,
                                       "command":"add_name"
                                       },
                 "Sociétés/Personnel":{"type":'Checkbox',
-                                      "creation":{"visible":True,"state":"tk.Normal"},
-                                      "modification":{"visible":True,"state":"tk.Disabled"},
+                                      "creation":{"visible":True,"state":"normal"},
+                                      "consultation":{"visible":True,"state":"disabled"},
                                       "list":self.list_societe,
                                       "command":"add_societe"
                                      },
                 "Alarme":{"type":'DateEntry',
-                       "creation":{"visible":True,"state":"tk.Normal"},
-                       "modification":{"visible":True,"state":"tk.Normal"}
+                       "creation":{"visible":True,"state":"normal"},
+                       "consultation":{"visible":True,"state":"disabled"}
                          }
                     }
         self.new_file()
@@ -182,11 +184,13 @@ what you can do to read it multiple time is :
 
 class MyDateEntry(tk.Frame):
     
-    def __init__(self,parent,*args,textvariable=tk.StringVar,**kwargs):
+    def __init__(self,parent,*args,textvariable=tk.StringVar,state='Normal',**kwargs):
         
         super().__init__(parent,*args,**kwargs)
+        
         self.entry_var=textvariable
-        self.entry=ttk.Entry(self,textvariable=self.entry_var)
+        
+        self.entry=ttk.Entry(self,textvariable=self.entry_var,state=state)
         vcmd=self.entry.register(self._validate)
         invcmd=self.entry.register(self._invalidate)
         self.entry.configure(
@@ -264,19 +268,30 @@ class MyDateEntry(tk.Frame):
         
 class LabelEntry(tk.Frame):
     #todo: make it so it deal with tk.text too
-    def __init__(self,parent,label,**kwargs):
+    def __init__(self,parent,label,state='normal',**kwargs):
         super().__init__(parent,**kwargs)
+        #self.mode=mode
         self.parent=parent
         self.label=label
         self.var=tk.StringVar()
         self.MyLabel=ttk.Label(self,text=label)
         if parent.data.fields[label]['type']=='Entry':
-            self.MyEntry=ttk.Entry(self,textvariable=self.var,**kwargs)
+            self.MyEntry=ttk.Entry(self,
+                                   textvariable=self.var,
+                                   state=state,
+                                   **kwargs)
         elif parent.data.fields[label]['type']=='DateEntry':
-            self.MyEntry=MyDateEntry(self,textvariable=self.var,**kwargs)    
+            self.MyEntry=MyDateEntry(self,
+                                     textvariable=self.var,
+                                     state=state,
+                                     **kwargs)    
         else:
             #self.MyEntry=TtkText(self,height=5)
-            self.MyEntry=tk.Text(self,height=5,borderwidth=0.5,relief='solid')
+            self.MyEntry=tk.Text(self,
+                                 height=5,
+                                 borderwidth=0.5,
+                                 relief='solid',
+                                 state=state)
         self.sep=ttk.Separator(self,orient="horizontal")
 
 
@@ -456,8 +471,10 @@ class ViewAll(ttk.Treeview):
         
 ##VIEW##
 class MyView(tk.Frame):
-    def __init__(self,parent,data,commands):
+    def __init__(self,parent,data,mode,commands):
         super().__init__(parent)
+        #todo : add button edit and grey save
+        self.mode=mode
         self.data=data
         self.commands=commands
         """we put our Fields's widget in a dict"""
@@ -476,6 +493,7 @@ class MyView(tk.Frame):
         self.button_save.grid(row=10,column=0,sticky='e')
         #self.button_print=ttk.Button(self,text='view all',command=self.commands['print_'])
         #self.button_print.grid(row=10,column=1,sticky='e')
+        
 
     def get(self):
         data={}
@@ -500,6 +518,24 @@ class MyView(tk.Frame):
             else:
                 for var in widget.dict_var.values():
                     var.set(0)
+
+    def change_state(self,state):
+        #todo : to refactor so it depends on widget type. might need to make them uniform
+        if state == "disabled" :
+            color='#d9d9d9'
+        else:
+            color='white'
+            
+        for field,widget in self.Fields.items():
+            if field in ("Ref","Note"):
+                widget.MyEntry.configure(state=state,background=color)
+            elif field in ("Date","Alarme"):
+                widget.MyEntry.entry.configure(state=state,background=color)
+            else :
+                for chckbt in widget.dict_chckbt.values():
+                    chckbt.configure(state=state)
+                widget.button_add.configure(state=state)
+        
                 
 
 
@@ -565,7 +601,7 @@ class MyApplication(tk.Tk):
         self.top1=tk.Toplevel(self)
         self.top1.title("Consulting log")
         #####
-        self.mv=MyView(self.top1,self.mdt,self.commands)
+        self.mv=MyView(self.top1,self.mdt,self.mode,self.commands)
         
         """auto fill date with today's date"""
         td=dt.date.today()
@@ -591,6 +627,7 @@ class MyApplication(tk.Tk):
 
     def doubleclick_viewall(self,*args):
         #todo : fix this so it open the selected line in edit or readonly mode
+        self.mode="consultation"
         self.new_log()
         current = self.viewall.selection()
         values = self.viewall.set(current)
@@ -604,6 +641,8 @@ class MyApplication(tk.Tk):
                 self.mv.reset()
                 #print(data[row_index])
                 self.mv.set(data[row_index])
+                self.mv.change_state('disabled')
+                
                 #self.top1.destroy()
                 break
 
@@ -616,6 +655,7 @@ class MyApplication(tk.Tk):
 
 if __name__=='__main__':
     app=MyApplication()
+    style=ttk.Style()
     app.mainloop()
     
     
