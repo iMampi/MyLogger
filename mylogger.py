@@ -298,7 +298,15 @@ class LabelEntry(tk.Frame):
             return self.MyEntry.get('1.0', tk.END)
 
     def set(self,newvalue,*args,**kwargs):
-        self.var.set(newvalue,*args,**kwargs)
+        if self.parent.data.fields[self.label]['type'] in ('Entry','DateEntry'):
+            #print(self.MyEntry.get())
+            self.var.set(newvalue,*args,**kwargs)
+        else:
+            self.MyEntry.insert('1.0',newvalue,*args,**kwargs)
+
+
+        
+        #self.var.set(newvalue,*args,**kwargs)
         
         
 class LabelCheckbutton(tk.Frame):
@@ -399,7 +407,10 @@ class LabelCheckbutton(tk.Frame):
     def set(self,dict_value):
         #todo : add a len checker
         """dict value must be a dict """
-        for name,value in dict_value.items:
+        #print(type(eval(dict_value)))
+        """when loaded from csv, data is all string. we convert it into a dict"""
+        data=eval(dict_value)
+        for name,value in data.items():
             self.dict_var[name].set(value)
 
     def add_new(self):
@@ -438,6 +449,8 @@ class ViewAll(ttk.Treeview):
             row_values = [row_data[header] for header in self.headers ]
             self.insert('', 'end', iid=counter, values=row_values)
             counter += 1
+
+
  
 
         
@@ -472,8 +485,11 @@ class MyView(tk.Frame):
 
     def set(self,data):
         """data must be a dict"""
+        #print(data.items())
         for field,value in data.items():
-            data[field].set(value)
+            #print(data[field])
+            #print(value)
+            self.Fields[field].set(value)
 
     def reset(self):
         for field,widget in self.Fields.items():
@@ -550,6 +566,26 @@ class MyApplication(tk.Tk):
         self.viewall.populate(self.mdt.load_records())
         
         self.top.update_idletasks()
+
+        self.viewall.bind('<<TreeviewOpen>>', self.doubleclick_viewall)
+
+
+    def doubleclick_viewall(self,*args):
+        current = self.viewall.selection()
+        values = self.viewall.set(current)
+        ref=values["Ref"]
+        data=self.mdt.load_records()
+        #print(data)
+        for row,values in enumerate(data):
+            if values['Ref']==ref:
+                row_index=row
+                #self.construction(myindex=row_index)
+                self.mv.reset()
+                #print(data[row_index])
+                self.mv.set(data[row_index])
+                self.top.destroy()
+                break
+
 
     def print_(self):
         print(self.var_list_name.get())
