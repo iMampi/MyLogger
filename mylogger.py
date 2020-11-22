@@ -433,9 +433,9 @@ class ViewAll(ttk.Treeview):
             self.heading(header,text=header)
             self.column(header, minwidth=40, width=80,stretch=True)
 
-        ybar=ttk.Scrollbar(self,orient="vertical",command=self.yview)
+        ybar=ttk.Scrollbar(parent,orient="vertical",command=self.yview)
         ybar.grid(row=0,column=1,sticky='nse')
-        xbar=ttk.Scrollbar(self,orient="horizontal",command=self.xview)
+        xbar=ttk.Scrollbar(parent,orient="horizontal",command=self.xview)
         self.configure(yscrollcommand=ybar.set, xscrollcommand=xbar.set)
         xbar.grid(row=1,column=0,sticky='swe')
 
@@ -474,8 +474,8 @@ class MyView(tk.Frame):
         self.columnconfigure(0,weight=1)
         self.button_save=ttk.Button(self,text='Save',command=self.commands['save_entry'])
         self.button_save.grid(row=10,column=0,sticky='e')
-        self.button_print=ttk.Button(self,text='view all',command=self.commands['print_'])
-        self.button_print.grid(row=10,column=1,sticky='e')
+        #self.button_print=ttk.Button(self,text='view all',command=self.commands['print_'])
+        #self.button_print.grid(row=10,column=1,sticky='e')
 
     def get(self):
         data={}
@@ -515,9 +515,57 @@ class MyApplication(tk.Tk):
         self.mdt=MyData()
         self.commands={'save_entry' : self.save_entry,
                        'load_records' : self.load_records,
-                       'print_' : self.viewall
+                       'new_log' : self.new_log
                        }
-        self.mv=MyView(self,self.mdt,self.commands)
+        
+        #####
+        self.button_new = ttk.Button(self,text="New log",command=self.commands['new_log'])
+        self.button_new.grid(row=0,column=0,sticky='w',padx=5,pady=5)
+        
+        self.geometry("500x200")
+        self.minsize(width=250, height=200)
+        self.title("Historique")
+        self.maxsize(width=1000, height=500)
+        self.columnconfigure(0,weight=1)
+        self.rowconfigure(0,weight=0)
+        self.rowconfigure(1,weight=1)
+
+        f=tk.Frame(self)
+        f.grid(row=1,column=0,sticky='nswe',padx=5,pady=5)
+        f.columnconfigure(0,weight=1)
+        f.rowconfigure(0,weight=1)
+        self.viewall=ViewAll(f,self.mdt)
+        self.viewall.grid(row=0,column=0,sticky='nswe')
+        self.viewall.columnconfigure(0,weight=1)
+        self.viewall.rowconfigure(0,weight=1)
+        
+        self.viewall.populate(self.mdt.load_records())
+        
+        self.update_idletasks()
+
+        self.viewall.bind('<<TreeviewOpen>>', self.doubleclick_viewall)
+        #####
+
+
+
+
+
+
+    def save_entry(self):
+        
+        self.mdt.save_entry(self.mv.get())
+        self.mv.reset()
+        self.top1.destroy()
+        #todo : insert messagebox "saved"
+        
+    def load_records(self):
+        pass
+    
+    def new_log(self):
+        self.top1=tk.Toplevel(self)
+        self.top1.title("Consulting log")
+        #####
+        self.mv=MyView(self.top1,self.mdt,self.commands)
         
         """auto fill date with today's date"""
         td=dt.date.today()
@@ -531,46 +579,19 @@ class MyApplication(tk.Tk):
             refnum=lastref.split('ref')[1]
             newnum=int(refnum)+1
             newref='ref'+str('{:04d}'.format(newnum))
-        print(newref)
+        #print(newref)
         self.mv.Fields['Ref'].set(newref)
             
         self.mv.grid(row=0,column=0,sticky='nswe',padx=5,pady=5)
+
         self.columnconfigure(0,weight=1)
-
-    def save_entry(self):
         
-        self.mdt.save_entry(self.mv.get())
-        self.mv.reset()
         
-    def load_records(self):
-        pass
-    
-    def viewall(self):
-        self.top=tk.Toplevel(self,background='blue')
-        self.top.geometry("250x200")
-        self.top.minsize(width=250, height=200)
-        self.top.title("Historique")
-        self.top.maxsize(width=1000, height=500)
-        self.top.columnconfigure(0,weight=1)
-        self.top.rowconfigure(0,weight=1)
-
-        f=tk.Frame(self.top)
-        f.grid(row=0,column=0,sticky='nswe')
-        f.columnconfigure(0,weight=1)
-        f.rowconfigure(0,weight=1)
-        self.viewall=ViewAll(f,self.mdt)
-        self.viewall.grid(row=0,column=0,sticky='nswe')
-        self.viewall.columnconfigure(0,weight=1)
-        self.viewall.rowconfigure(0,weight=1)
-        
-        self.viewall.populate(self.mdt.load_records())
-        
-        self.top.update_idletasks()
-
-        self.viewall.bind('<<TreeviewOpen>>', self.doubleclick_viewall)
-
+        #####
 
     def doubleclick_viewall(self,*args):
+        #todo : fix this so it open the selected line in edit or readonly mode
+        self.new_log()
         current = self.viewall.selection()
         values = self.viewall.set(current)
         ref=values["Ref"]
@@ -583,7 +604,7 @@ class MyApplication(tk.Tk):
                 self.mv.reset()
                 #print(data[row_index])
                 self.mv.set(data[row_index])
-                self.top.destroy()
+                #self.top1.destroy()
                 break
 
 
