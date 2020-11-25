@@ -10,6 +10,10 @@ import csv, os, json
 #todo : after reset, set a new ref automatically
 #todo : arrange size of main window
 #todo : ask confirmation when something has changed qhen quiting
+#todo : viewall to update when saving after changed
+#todo : update viewall (append) when adding new entry
+#todo : think about adding a deleteentry option
+#to fix : on a une erreur quand on edit une entrée. erreurs lors de load_reccords
 
 ##BASE##
 class MyData:
@@ -55,7 +59,6 @@ class MyData:
                          }
                     }
         self.new_file()
-        self.data=self.load_records()
         
     def new_file(self):
         """check if database exist"""
@@ -78,14 +81,40 @@ class MyData:
             print('No datalist found. Created new datalist.')
 
         
-    def save_entry(self,data):
+    def save_entry(self,data,mode):
+        #tofix: add different treatment for new entry and edited entry
         
-        with open(self.filename, 'a',newline='') as fh:
+        
+        if mode =="creation":
+            #here data is a dict
+            for field,value in data.items():
+                if value=='':
+                    data[field]='None'
+            with open(self.filename, 'a',newline='',encoding='utf-8') as fh:
                 csvwriter = csv.DictWriter(fh,
-                                           fieldnames=[x for x in self.fields.keys()],
-                                           delimiter=";"
-                                           )
+                                        fieldnames=[x for x in self.fields.keys()],
+                                        delimiter=";"
+                                        )
                 csvwriter.writerow(data)
+        else:
+            #here data is a list of dict
+            for row in data:
+                for field,value in row.items():
+                    if value=='':
+                        row[field]='None'
+
+            with open(self.filename, 'w',newline='',encoding='utf-8') as fh:
+                csvwriter = csv.DictWriter(fh,
+                                        fieldnames=[x for x in self.fields.keys()],
+                                        delimiter=";"
+                                        )
+                csvwriter.writeheader()
+                for row in data:
+                    csvwriter.writerow(row)
+
+            
+            
+
         """
 NOTE : here we can only use the csviterator once, because csv.DictReader return
 a iterator. once it has been fully read (so the pointer goes to the end of the list,
@@ -130,13 +159,14 @@ what you can do to read it multiple time is :
             self.load_records()
         """
     def load_records(self):
+        #todo : catch error when file is empty or missing a field
         existfile = os.path.exists(self.filename)
         if not existfile:
             self.newfile()
             return []
         
         
-        with open(self.filename, 'r',newline='') as fh:
+        with open(self.filename, 'r',newline='',encoding='utf-8') as fh:
             csvreader = csv.DictReader(fh,
                                     delimiter=";"
                                     )
@@ -145,12 +175,18 @@ what you can do to read it multiple time is :
             
             if len(missing_fields) > 0:
                 raise Exception(
-                    "File is missing fields: {}"
-                    .format(', '.join(missing_fields))
-                                )
+                    
+                    "File is missing fields: {}".format(', '.join(missing_fields))
+                    )
+                                
 
             else:
                 data =list(csvreader)
+                #print(data[0][])
+                for row in data:
+                    for field,value in row.items():
+                        if value=='None':
+                            row[field]=''
                 return data
             
 
@@ -437,6 +473,7 @@ class ViewAll(ttk.Treeview):
     def __init__(self,parent,model,*args,**kwargs):
         super().__init__(parent,*args,**kwargs)
         self.model=model
+        #self.parent=parent
         self.headers=self.model.fields.keys()
         self.configure(columns=[*self.headers],show="headings")
         
@@ -489,8 +526,16 @@ class MyView(tk.Frame):
             self.Fields[field].grid(row=num,column=0,sticky='we',pady=2)
 
         self.columnconfigure(0,weight=1)
+
+        self.button_edit=ttk.Button(self,text='Edit',command=self.commands['mode_edit'])
+        self.button_edit.grid(row=10,column=1,sticky='e')
+
         self.button_save=ttk.Button(self,text='Save',command=self.commands['save_entry'])
         self.button_save.grid(row=10,column=0,sticky='e')
+
+        self.update_idletasks()
+            
+        
         #self.button_print=ttk.Button(self,text='view all',command=self.commands['print_'])
         #self.button_print.grid(row=10,column=1,sticky='e')
         
@@ -535,6 +580,17 @@ class MyView(tk.Frame):
                 for chckbt in widget.dict_chckbt.values():
                     chckbt.configure(state=state)
                 widget.button_add.configure(state=state)
+
+        self.update_idletasks()
+
+        if self.mode=="consultation":
+            self.button_save.configure(state="disabled")
+        else :
+            self.button_edit.configure(state="disabled")
+            self.button_save.configure(state="normal")
+
+
+
         
                 
 
@@ -547,15 +603,18 @@ class MyView(tk.Frame):
 class MyApplication(tk.Tk):
     def __init__(self,*args,**kwargs):
         super().__init__(*args,**kwargs)
-        self.mode=None
+        self.mode="consultation"
         self.mdt=MyData()
+        self.selected=None
         self.commands={'save_entry' : self.save_entry,
                        'load_records' : self.load_records,
-                       'new_log' : self.new_log
+                       'new_log' : self.new_log,
+                       'mode_edit': self.mode_edit
                        }
-        
+        self.records=self.mdt.load_records()
         #####
-        self.button_new = ttk.Button(self,text="New log",command=self.commands['new_log'])
+        self.button_new = ttk.Button(self,text="New log",command = lambda : self.commands['new_log']("creation"))
+        #todo : catch error if argument is neither creation or consultation
         self.button_new.grid(row=0,column=0,sticky='w',padx=5,pady=5)
         
         self.geometry("500x200")
@@ -575,7 +634,7 @@ class MyApplication(tk.Tk):
         self.viewall.columnconfigure(0,weight=1)
         self.viewall.rowconfigure(0,weight=1)
         
-        self.viewall.populate(self.mdt.load_records())
+        self.viewall.populate(self.records)
         
         self.update_idletasks()
 
@@ -588,35 +647,81 @@ class MyApplication(tk.Tk):
 
 
     def save_entry(self):
+        #tofix : when we save a edited log. it is saved last in the csv,not replacing the old log 
+
+            if self.mode=="creation":
+                record=self.mv.get()
+                values = [record[header] for header in self.mdt.fields.keys() ]
+                #self.insert('', 'end', iid=counter, values=row_values)
+
+                print(record)
+                self.mdt.save_entry(record,self.mode)
+                self.mv.reset()
+                self.top1.destroy()
+                self.update()
+
+                #we update viewall now if new log or an update        
+                if self.selected==None:
+                    self.viewall.insert('', 'end', iid=len(self.records)+1, values=values)
+                else:
+                    self.viewall.item(self.selected, text='', values=values)
+            else:
+                record=self.mv.get()
+                values = [record[header] for header in self.mdt.fields.keys() ]
+                #self.insert('', 'end', iid=counter, values=row_values)
+
+                print(record)
+                self.records[int(self.selected)]=record
+                
+                self.mdt.save_entry(self.records,self.mode)
+                self.mv.reset()
+                self.top1.destroy()
+                self.update()
+
+                #we update viewall now if new log or an update        
+                if self.selected==None:
+                    self.viewall.insert('', 'end', iid=len(self.records)+1, values=values)
+                else:
+                    self.viewall.item(self.selected, text='', values=values)
+
+            self.records=self.mdt.load_records()
+
+                
+
         
-        self.mdt.save_entry(self.mv.get())
-        self.mv.reset()
-        self.top1.destroy()
         #todo : insert messagebox "saved"
         
     def load_records(self):
         pass
     
-    def new_log(self):
+    def new_log(self,mode):
         self.top1=tk.Toplevel(self)
-        self.top1.title("Consulting log")
-        #####
+        self.mode=mode
         self.mv=MyView(self.top1,self.mdt,self.mode,self.commands)
-        
-        """auto fill date with today's date"""
-        td=dt.date.today()
-        self.mv.Fields['Date'].set(td.strftime("%d/%m/%Y"))
 
-        """auto fill ref"""
-        if len(self.mdt.data)==0:
-            newref = "ref0001"
+        if mode=="consultation":
+            self.top1.title("Consulting log")
         else :
-            lastref = self.mdt.data[-1]['Ref']
-            refnum=lastref.split('ref')[1]
-            newnum=int(refnum)+1
-            newref='ref'+str('{:04d}'.format(newnum))
-        #print(newref)
-        self.mv.Fields['Ref'].set(newref)
+            self.top1.title("Creating log")
+
+            """auto fill date with today's date"""
+            td=dt.date.today()
+            self.mv.Fields['Date'].set(td.strftime("%d/%m/%Y"))
+
+            """auto fill ref"""
+            if len(self.records)==0:
+                newref = "ref0001"
+            else :
+                lastref = self.records[-1]['Ref']
+                refnum=lastref.split('ref')[1]
+                newnum=int(refnum)+1
+                newref='ref'+str('{:04d}'.format(newnum))
+                #print(newref)
+                self.mv.Fields['Ref'].set(newref)
+
+
+        #####
+        
             
         self.mv.grid(row=0,column=0,sticky='nswe',padx=5,pady=5)
 
@@ -625,11 +730,14 @@ class MyApplication(tk.Tk):
         
         #####
 
+
+        
     def doubleclick_viewall(self,*args):
         #todo : fix this so it open the selected line in edit or readonly mode
         self.mode="consultation"
-        self.new_log()
-        current = self.viewall.selection()
+        self.new_log("consultation")
+        current = self.viewall.focus()
+        self.selected=current
         values = self.viewall.set(current)
         ref=values["Ref"]
         data=self.mdt.load_records()
@@ -645,6 +753,13 @@ class MyApplication(tk.Tk):
                 
                 #self.top1.destroy()
                 break
+
+    def mode_edit(self):
+        self.mv.mode="creation"
+        self.mv.change_state("normal")
+        self.update()
+        self.mv.update()
+
 
 
     def print_(self):
