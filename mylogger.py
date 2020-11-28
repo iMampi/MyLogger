@@ -14,9 +14,8 @@ import csv, os, json
 #todo : for gens concerné and societe, format how it is displayed. display only thosse concerned
 #todo : compare the memory usage of the two approach for updating treeview . destroy populate vs update just 1 entry
 #todo : update function for update treeview (destroypopulate)
-#todo : when using filter, it looks into gens concerné too. fix display of gens conerné et societe
 #todo : add widith column in MyData for each field for column width in treeview
-
+#todo : add checkbox filter by gens concerné et csociete
 
 #todo : think about adding a deleteentry option
 
@@ -447,7 +446,10 @@ class LabelCheckbutton(tk.Frame):
         #todo : add a len checker. checker that all fields are there
         """dict value must be a dict """
         """when loaded from csv, data is all string. we convert it into a dict"""
-        data=eval(dict_value)
+        data=dict_value
+        if type(dict_value)!=dict:
+            data=eval(dict_value)
+        
         for name,value in data.items():
             self.dict_var[name].set(value)
 
@@ -482,6 +484,7 @@ class ViewAll(ttk.Treeview):
         super().grid(*args,row=row,column=column,sticky=sticky,**kwargs)
 
     def populate(self,data,alarm=False):
+        """delete rows in treeview"""
         children=self.get_children()
         if len(children) > 0 :
             for child in children:
@@ -489,9 +492,23 @@ class ViewAll(ttk.Treeview):
                 
         counter=0
         for row_data in data:
-            row_values = [row_data[header] for header in self.headers ]
+            row_values=[]
+            for header in self.headers:
+                #todo : what if ml is empty
+                if header in ("Les gens concernés", "Sociétés/Personnel"):
+                    ml=[]
+                    for key,value in eval(row_data[header]).items():
+                        if value==1:
+                            ml.append(key)
+                    ml=", ".join(ml)
+                    row_values.append(ml)
+                else:
+                    row_values.append(row_data[header])
+
+            #row_values = [row_data[header] for header in self.headers ]
+
             if alarm==True:
-                if row_values[-1]!='':
+                if row_data['Alarme']!='':
                     self.insert('', 'end', iid=counter, values=row_values)
                     counter += 1
             else:                
@@ -580,6 +597,15 @@ class MyView(tk.Frame):
         else :
             self.button_edit.configure(state="disabled")
             self.button_save.configure(state="normal")
+
+class ComplexeFilter(tk.Frame):
+    def __init__(self,parent,model,*args,**kwargs):
+        super().__init__(parent,*args,**kwargs)
+        
+        pass
+
+
+
 
 ##CONTROLER##
 class MyApplication(tk.Tk):
