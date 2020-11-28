@@ -1,4 +1,3 @@
-#encoding : utf-8
 import tkinter as tk
 from tkinter import ttk
 import datetime as dt
@@ -8,15 +7,14 @@ import csv, os, json
 
 #todo : add "select all" for chackbox label
 #todo : implement messagebox
-
+#todo : after reset, set a new ref automatically
 #todo : arrange size of main window
 #todo : ask confirmation when something has changed qhen quiting
-#todo : viewall to update when saving after changed
+#todo : auto formating new elemetn : first letter in capital
+#todo : for gens concerné and societe, format how it is displayed. display only thosse concerned
+
 
 #todo : think about adding a deleteentry option
-#to fix : on a une erreur quand on edit une entrée. erreurs lors de load_reccords
-#todo : format displaying dict of gens concerné et societe
-#todo : auto Maj la premiere lettre lors de add dans chckbt
 
 ##BASE##
 class MyData:
@@ -85,7 +83,6 @@ class MyData:
 
         
     def save_entry(self,data,mode):
-        
         
         if mode =="creation":
             #here data is a dict
@@ -172,24 +169,24 @@ what you can do to read it multiple time is :
             csvreader = csv.DictReader(fh,
                                     delimiter=";"
                                     )
-            missing_fields = set([x for x in self.fields.keys()]) - \
-                             set(csvreader.fieldnames)
-                    
+            missing_fields = set(csvreader.fieldnames) - \
+                    set([x for x in self.fields.keys()])
             
             if len(missing_fields) > 0:
                 raise Exception(
                     
                     "File is missing fields: {}".format(', '.join(missing_fields))
                     )
+                                
 
             else:
                 data =list(csvreader)
-                #print(data[0][])
+                """converting some data into python data"""
                 for row in data:
                     for field,value in row.items():
                         if value=='None':
                             row[field]=''
-                return data
+            return data
             
 
     def save_lists(self):
@@ -303,9 +300,10 @@ class MyDateEntry(tk.Frame):
         
         
 class LabelEntry(tk.Frame):
-
-    def __init__(self,parent,label,state='normal',**kwargs):
+    #todo: make it so it deal with tk.text too
+    def __init__(self,parent,label,**kwargs):
         super().__init__(parent,**kwargs)
+        #self.mode=mode
         self.parent=parent
         self.label=label
         self.var=tk.StringVar()
@@ -313,19 +311,16 @@ class LabelEntry(tk.Frame):
         if parent.data.fields[label]['type']=='Entry':
             self.MyEntry=ttk.Entry(self,
                                    textvariable=self.var,
-                                   state=state,
                                    **kwargs)
         elif parent.data.fields[label]['type']=='DateEntry':
             self.MyEntry=MyDateEntry(self,
                                      textvariable=self.var,
-                                     state=state,
                                      **kwargs)    
         else:
             self.MyEntry=tk.Text(self,
                                  height=5,
                                  borderwidth=0.5,
-                                 relief='solid',
-                                 state=state)
+                                 relief='solid')
         self.sep=ttk.Separator(self,orient="horizontal")
 
 
@@ -352,7 +347,6 @@ class LabelEntry(tk.Frame):
         else:
             self.MyEntry.insert('1.0',newvalue,*args,**kwargs)
 
-        
         
 class LabelCheckbutton(tk.Frame):
     
@@ -415,9 +409,8 @@ class LabelCheckbutton(tk.Frame):
             self.outer_instance=outer_instance
             self.parent=parent
             self.MyVar=tk.StringVar()
-            lab=tk.Label(self,text='Enter new element :')
-            lab.grid(row=0,column=0)
-            
+            lab=tk.Label(self,text="Enter new element :")
+            lab.grid(row=0,column=0,sticky='we')
             self.MyEntry=ttk.Entry(self,textvariable=self.MyVar)
             self.MyEntry.grid(row=1,column=0,sticky='we')
             self.MyButton=ttk.Button(self,text='Save',command=self.save_new)
@@ -450,7 +443,7 @@ class LabelCheckbutton(tk.Frame):
         return data
 
     def set(self,dict_value):
-        #todo : add a len checker
+        #todo : add a len checker. checker that all fields are there
         """dict value must be a dict """
         """when loaded from csv, data is all string. we convert it into a dict"""
         data=eval(dict_value)
@@ -460,19 +453,19 @@ class LabelCheckbutton(tk.Frame):
     def add_new(self):
         self.top=tk.Toplevel(self)
         self.top.title("New element")
-        self.top.geometry("200x80")
-        self.top.columnconfigure(0,weight=1)
-        self.top.resizable(False,False)
+        self.top.geometry("250x80")
         self.wa=self.WidgetAdd(self.top,self)
         self.wa.grid(row=0,column=0,sticky='nswe',padx=5,pady=5)
+        self.top.columnconfigure(0,weight=1)
 
 class ViewAll(ttk.Treeview):
     def __init__(self,parent,model,*args,**kwargs):
         super().__init__(parent,*args,**kwargs)
         self.model=model
         self.headers=self.model.fields.keys()
+        #show="headings" make it so #0 column doesnt show
         self.configure(columns=[*self.headers],show="headings")
-        
+                       
         for header in self.headers:
             self.heading(header,text=header)
             self.column(header, minwidth=40, width=80,stretch=True)
@@ -515,11 +508,10 @@ class MyView(tk.Frame):
                 self.Fields[field]=LabelCheckbutton(self,field,
                                                     self.data,chckbt_labels=self.data.fields[field]['list']
                                                     )
-            self.Fields[field].grid(row=num,column=0,sticky='we',pady=2,columnspan=2)
+            self.Fields[field].grid(row=num,column=0,sticky='we',pady=2)
 
         self.columnconfigure(0,weight=1)
-        self.columnconfigure(1,weight=0)
-        
+
         self.button_edit=ttk.Button(self,text='Edit',command=self.commands['mode_edit'])
         self.button_edit.grid(row=10,column=1,sticky='e')
 
@@ -528,6 +520,10 @@ class MyView(tk.Frame):
 
         self.update_idletasks()
             
+        
+        #self.button_print=ttk.Button(self,text='view all',command=self.commands['print_'])
+        #self.button_print.grid(row=10,column=1,sticky='e')
+        
 
     def get(self):
         data={}
@@ -537,7 +533,10 @@ class MyView(tk.Frame):
 
     def set(self,data):
         """data must be a dict"""
+        #print(data.items())
         for field,value in data.items():
+            #print(data[field])
+            #print(value)
             self.Fields[field].set(value)
 
     def reset(self):
@@ -552,7 +551,6 @@ class MyView(tk.Frame):
 
     def change_state(self,state):
         #todo : to refactor so it depends on widget type. might need to make them uniform
-        #todo : to refactor. use mode as variable ref, not state anymore.
         if state == "disabled" :
             color='#d9d9d9'
         else:
@@ -573,9 +571,19 @@ class MyView(tk.Frame):
         if self.mode=="consultation":
             self.button_save.configure(state="disabled")
             self.button_edit.configure(state="normal")
+
         else :
             self.button_edit.configure(state="disabled")
             self.button_save.configure(state="normal")
+
+
+
+        
+                
+
+
+        
+        
 
 
 ##CONTROLER##
@@ -626,7 +634,6 @@ class MyApplication(tk.Tk):
 
 
     def save_entry(self):
-        #tofix : when we save a edited log. it is saved last in the csv,not replacing the old log 
 
             if self.mode=="creation":
                 record=self.mv.get()
@@ -662,7 +669,6 @@ class MyApplication(tk.Tk):
                     self.viewall.item(self.selected, text='', values=values)
 
             self.records=self.mdt.load_records()
-
         
         #todo : insert messagebox "saved"
         
@@ -671,9 +677,9 @@ class MyApplication(tk.Tk):
     
     def new_log(self,mode):
         self.top1=tk.Toplevel(self)
-        #todo : make top not resizable
         self.mode=mode
         self.mv=MyView(self.top1,self.mdt,self.mode,self.commands)
+        self.mv.change_state("normal")
 
         if mode=="consultation":
             self.top1.title("Consulting log")
@@ -692,17 +698,13 @@ class MyApplication(tk.Tk):
                 refnum=lastref.split('ref')[1]
                 newnum=int(refnum)+1
                 newref='ref'+str('{:04d}'.format(newnum))
-            self.mv.Fields['Ref'].set(newref)
-        #####
-        self.mv.grid(row=0,column=0,sticky='nswe',padx=5,pady=5)
-        self.mv.change_state('normal')
+                #print(newref)
+                self.mv.Fields['Ref'].set(newref)
 
-        self.top1.columnconfigure(0,weight=1)
-        self.top1.rowconfigure(0,weight=1)
-        #####
+        self.mv.grid(row=0,column=0,sticky='nswe',padx=5,pady=5)
+        self.columnconfigure(0,weight=1)
         
     def doubleclick_viewall(self,*args):
-        #todo : fix this so it open the selected line in edit or readonly mode
         self.mode="consultation"
         self.new_log("consultation")
         current = self.viewall.focus()
@@ -710,7 +712,6 @@ class MyApplication(tk.Tk):
         values = self.viewall.set(current)
         ref=values["Ref"]
         data=self.mdt.load_records()
-        #print(data)
         for row,values in enumerate(data):
             if values['Ref']==ref:
                 row_index=row
@@ -728,6 +729,7 @@ class MyApplication(tk.Tk):
     def print_(self):
         print(self.var_list_name.get())
         print(self.mv.Fields["Les gens concernés"].chckbt_labels)
+
 
 if __name__=='__main__':
     app=MyApplication()
