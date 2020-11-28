@@ -14,6 +14,8 @@ import csv, os, json
 #todo : for gens concerné and societe, format how it is displayed. display only thosse concerned
 #todo : compare the memory usage of the two approach for updating treeview . destroy populate vs update just 1 entry
 #todo : update function for update treeview (destroypopulate)
+#todo : when using filter, it looks into gens concerné too. fix display of gens conerné et societe
+#todo : add widith column in MyData for each field for column width in treeview
 
 
 #todo : think about adding a deleteentry option
@@ -601,9 +603,10 @@ class MyApplication(tk.Tk):
         
         self.button_new = ttk.Button(fb,text="New log",command = lambda : self.commands['new_log']("creation"))
         self.button_all_filter = ttk.Button(fb,text="View All", command = self.button_switch)
-
         self.filter_var=tk.StringVar()
         self.filter = ttk.Entry(fb,textvariable=self.filter_var)
+        self.filter_var.trace('w',self.filter_tree)
+        
         #todo : catch error if argument is neither creation or consultation
         self.button_new.grid(row=0,column=0,sticky='w',padx=5,pady=5)
         self.button_all_filter.grid(row=0,column=1,sticky='w',padx=5,pady=5)
@@ -639,19 +642,35 @@ class MyApplication(tk.Tk):
         if self.alarm==True:
             self.alarm=False
             self.button_all_filter.configure(text="View Alarm Only")
-            self.viewall.populate(self.records,alarm=False)
-            print(self.viewall.get_children())
+            self.viewall.populate(self.records,alarm=self.alarm)
         else:
             self.alarm=True
             self.button_all_filter.configure(text="View All")
             self.viewall.populate(self.records,alarm=True)
-            print(self.viewall.get_children())
 
 
+    def filter_tree(self,*args):
+        #fixme : optimize maybe
 
+        init_iids=self.viewall.get_children()
+        for iid in init_iids:
+            self.viewall.delete(iid)
 
-    def load_tree(self):
-        pass
+        self.viewall.populate(self.records,alarm=self.alarm)
+        characters = self.filter.get().lower()
+        if characters=='':
+            return
+        else:
+            myiids=list(self.viewall.get_children())
+            for myiid in myiids:
+                values=self.viewall.set(myiid)
+                headers=self.mdt.fields.keys()
+                test=[]
+                for header in headers:
+                    test.append(characters not in values[header].lower())
+                if all(test):
+                        self.viewall.delete(myiid)
+
         
 
     def save_entry(self):
