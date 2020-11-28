@@ -12,6 +12,8 @@ import csv, os, json
 #todo : ask confirmation when something has changed qhen quiting
 #todo : auto formating new elemetn : first letter in capital
 #todo : for gens concerné and societe, format how it is displayed. display only thosse concerned
+#todo : compare the memory usage of the two approach for updating treeview . destroy populate vs update just 1 entry
+#todo : update function for update treeview (destroypopulate)
 
 
 #todo : think about adding a deleteentry option
@@ -211,8 +213,6 @@ what you can do to read it multiple time is :
             self.load_lists()
            
 
-        
-
 ##WIDGETS##
 
 class MyDateEntry(tk.Frame):
@@ -258,8 +258,6 @@ class MyDateEntry(tk.Frame):
         if value!='':
             self.entry_var.set(value)
             self.top.destroy()
-        
-
 
     def _validate(self, proposed, current, char, event, index, action):
         valid=False
@@ -413,14 +411,17 @@ class LabelCheckbutton(tk.Frame):
             lab.grid(row=0,column=0,sticky='we')
             self.MyEntry=ttk.Entry(self,textvariable=self.MyVar)
             self.MyEntry.grid(row=1,column=0,sticky='we')
+            self.MyEntry.focus_set()
             self.MyButton=ttk.Button(self,text='Save',command=self.save_new)
             self.MyButton.grid(row=2,column=0,sticky='e')
             self.columnconfigure(0,weight=1)
+            
+            self.MyEntry.bind('<Return>',self.save_new)
 
         def get(self):
             return self.MyVar.get()
 
-        def save_new(self):
+        def save_new(self,*args,**kwargs):
             new=self.get()
             self.outer_instance.model.fields[self.outer_instance.label]['list'].append(new)
 
@@ -429,8 +430,6 @@ class LabelCheckbutton(tk.Frame):
             self.outer_instance.update()
             self.outer_instance.model.save_lists()
 
-
-            
     def grid(self,row=None,column=None,sticky='WE',**kwargs):
         super().grid(row=row,column=column,sticky=sticky,**kwargs)
         self.columnconfigure(0,weight=1)
@@ -480,16 +479,22 @@ class ViewAll(ttk.Treeview):
     def grid(self,*args,row=None,column=None,sticky='nswe',**kwargs):
         super().grid(*args,row=row,column=column,sticky=sticky,**kwargs)
 
-    def populate(self,data):
+    def populate(self,data,alarm=False):
+        children=self.get_children()
+        if len(children) > 0 :
+            for child in children:
+                self.delete(child)
+                
         counter=0
         for row_data in data:
             row_values = [row_data[header] for header in self.headers ]
-            self.insert('', 'end', iid=counter, values=row_values)
-            counter += 1
-
-
- 
-
+            if alarm==True:
+                if row_values[-1]!='':
+                    self.insert('', 'end', iid=counter, values=row_values)
+                    counter += 1
+            else:                
+                self.insert('', 'end', iid=counter, values=row_values)
+                counter += 1
         
 ##VIEW##
 class MyView(tk.Frame):
@@ -510,6 +515,8 @@ class MyView(tk.Frame):
                                                     )
             self.Fields[field].grid(row=num,column=0,sticky='we',pady=2)
 
+        self.update_idletasks()
+
         self.columnconfigure(0,weight=1)
 
         self.button_edit=ttk.Button(self,text='Edit',command=self.commands['mode_edit'])
@@ -518,12 +525,8 @@ class MyView(tk.Frame):
         self.button_save=ttk.Button(self,text='Save',command=self.commands['save_entry'])
         self.button_save.grid(row=10,column=0,sticky='e')
 
-        self.update_idletasks()
-            
-        
-        #self.button_print=ttk.Button(self,text='view all',command=self.commands['print_'])
-        #self.button_print.grid(row=10,column=1,sticky='e')
-        
+        self.Fields['Note'].MyEntry.focus_set()
+
 
     def get(self):
         data={}
@@ -576,21 +579,12 @@ class MyView(tk.Frame):
             self.button_edit.configure(state="disabled")
             self.button_save.configure(state="normal")
 
-
-
-        
-                
-
-
-        
-        
-
-
 ##CONTROLER##
 class MyApplication(tk.Tk):
     def __init__(self,*args,**kwargs):
         super().__init__(*args,**kwargs)
         self.mode="consultation"
+        self.alarm=True
         self.mdt=MyData()
         self.selected=None
         self.commands={'save_entry' : self.save_entry,
@@ -599,16 +593,28 @@ class MyApplication(tk.Tk):
                        'mode_edit': self.mode_edit
                        }
         self.records=self.mdt.load_records()
-        #####
-        self.button_new = ttk.Button(self,text="New log",command = lambda : self.commands['new_log']("creation"))
+        fb=tk.Frame(self,relief='solid')
+        fb.grid(row=0,column=0,sticky='we',padx=5,pady=5)
+        fb.columnconfigure(0,weight=0)
+        fb.columnconfigure(1,weight=0)
+        fb.columnconfigure(2,weight=1)
+        
+        self.button_new = ttk.Button(fb,text="New log",command = lambda : self.commands['new_log']("creation"))
+        self.button_all_filter = ttk.Button(fb,text="View All", command = self.button_switch)
+
+        self.filter_var=tk.StringVar()
+        self.filter = ttk.Entry(fb,textvariable=self.filter_var)
         #todo : catch error if argument is neither creation or consultation
         self.button_new.grid(row=0,column=0,sticky='w',padx=5,pady=5)
+        self.button_all_filter.grid(row=0,column=1,sticky='w',padx=5,pady=5)
+        self.filter.grid(row=0,column=2,sticky='we',padx=5,pady=5)
         
         self.geometry("500x200")
         self.minsize(width=250, height=200)
         self.title("Historique")
         self.maxsize(width=1000, height=500)
         self.columnconfigure(0,weight=1)
+        #self.columnconfigure(1,weight=1)
         self.rowconfigure(0,weight=0)
         self.rowconfigure(1,weight=1)
 
@@ -616,22 +622,37 @@ class MyApplication(tk.Tk):
         f.grid(row=1,column=0,sticky='nswe',padx=5,pady=5)
         f.columnconfigure(0,weight=1)
         f.rowconfigure(0,weight=1)
+        
         self.viewall=ViewAll(f,self.mdt)
         self.viewall.grid(row=0,column=0,sticky='nswe')
         self.viewall.columnconfigure(0,weight=1)
         self.viewall.rowconfigure(0,weight=1)
-        
-        self.viewall.populate(self.records)
+
+        self.viewall.populate(self.records,alarm=True)
         
         self.update_idletasks()
 
         self.viewall.bind('<<TreeviewOpen>>', self.doubleclick_viewall)
-        #####
+
+    def button_switch(self):
+        
+        if self.alarm==True:
+            self.alarm=False
+            self.button_all_filter.configure(text="View Alarm Only")
+            self.viewall.populate(self.records,alarm=False)
+            print(self.viewall.get_children())
+        else:
+            self.alarm=True
+            self.button_all_filter.configure(text="View All")
+            self.viewall.populate(self.records,alarm=True)
+            print(self.viewall.get_children())
 
 
 
 
-
+    def load_tree(self):
+        pass
+        
 
     def save_entry(self):
 
@@ -679,6 +700,8 @@ class MyApplication(tk.Tk):
         self.top1=tk.Toplevel(self)
         self.mode=mode
         self.mv=MyView(self.top1,self.mdt,self.mode,self.commands)
+        #another more specific way to put the cursor where we want in tk.Text
+        #self.mv.Fields['Note'].MyEntry.mark_set("insert","1,0")
         self.mv.change_state("normal")
 
         if mode=="consultation":
@@ -735,8 +758,3 @@ if __name__=='__main__':
     app=MyApplication()
     style=ttk.Style()
     app.mainloop()
-    
-    
-
-        
-    
