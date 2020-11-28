@@ -35,33 +35,56 @@ class MyData:
         self.fields={"Ref":{"type":'Entry',
                        "creation":{"visible":True,"state":"normal"},
                        "consultation":{"visible":True,"state":"readonly"},
-                            
+                        "width":50
                            },
                 "Date":{"type":'DateEntry',
                        "creation":{"visible":True,"state":"normal"},
-                       "consultation":{"visible":True,"state":"readonly"}
+                       "consultation":{"visible":True,"state":"readonly"},
+                        "width":70
                        },
                 "Note":{"type":'Text',
                        "creation":{"visible":True,"state":"normal"},
-                       "consultation":{"visible":True,"state":"normal"}
+                       "consultation":{"visible":True,"state":"normal"},
+                        "width":200
                        },
                 "Les gens concernés":{"type":'Checkbox',
                                       "creation":{"visible":True,"state":"normal"},
                                       "consultation":{"visible":True,"state":"disabled"},
                                       "list":self.list_name,
-                                      "command":"add_name"
+                                      "command":"add_name",
+                                      "width":150
                                       },
                 "Sociétés/Personnel":{"type":'Checkbox',
                                       "creation":{"visible":True,"state":"normal"},
                                       "consultation":{"visible":True,"state":"disabled"},
                                       "list":self.list_societe,
-                                      "command":"add_societe"
+                                      "command":"add_societe",
+                                      "width":150
                                      },
                 "Alarme":{"type":'DateEntry',
                        "creation":{"visible":True,"state":"normal"},
-                       "consultation":{"visible":True,"state":"disabled"}
+                       "consultation":{"visible":True,"state":"disabled"},
+                       "width":70
                          }
                     }
+        self.filter_fields={"Date début":{"type":'DateEntry',
+                                      "creation":{"visible":True,"state":"normal"},
+                                      "consultation":{"visible":True,"state":"disabled"},
+                                      "width":150
+                                     },
+                            "Date fin":{"type":'DateEntry',
+                                      "creation":{"visible":True,"state":"normal"},
+                                      "consultation":{"visible":True,"state":"disabled"},
+                                      "width":150
+                                     },
+                            "Les gens concernés":self.fields["Les gens concernés"],
+                            "Sociétés/Personnel":self.fields["Sociétés/Personnel"],
+                            "Mots clefs dans notes":{"type":'Entry',
+                                      "creation":{"visible":True,"state":"normal"},
+                                      "consultation":{"visible":True,"state":"disabled"},
+                                      "width":150
+                                     }
+                            }
         self.new_file()
         
     def new_file(self):
@@ -300,18 +323,27 @@ class MyDateEntry(tk.Frame):
         
 class LabelEntry(tk.Frame):
     #todo: make it so it deal with tk.text too
-    def __init__(self,parent,label,**kwargs):
+    def __init__(self,parent,label,model,**kwargs):
         super().__init__(parent,**kwargs)
-        #self.mode=mode
-        self.parent=parent
+            
+        self.model=model
         self.label=label
         self.var=tk.StringVar()
         self.MyLabel=ttk.Label(self,text=label)
-        if parent.data.fields[label]['type']=='Entry':
+        print(parent)
+        if isinstance(parent,MyView):
+            
+            checker=self.model.fields
+        else:
+            checker=self.model.filter_fields
+
+
+        
+        if checker[label]['type']=='Entry':
             self.MyEntry=ttk.Entry(self,
                                    textvariable=self.var,
                                    **kwargs)
-        elif parent.data.fields[label]['type']=='DateEntry':
+        elif checker[label]['type']=='DateEntry':
             self.MyEntry=MyDateEntry(self,
                                      textvariable=self.var,
                                      **kwargs)    
@@ -332,8 +364,8 @@ class LabelEntry(tk.Frame):
         
 
     def get(self):
-        print(self.parent.data.fields[self.label]['type'])
-        if self.parent.data.fields[self.label]['type'] in ('Entry','DateEntry'):
+        print(self.model.fields[self.label]['type'])
+        if 'Entry' in self.model.fields[self.label]['type'] :
             print(self.MyEntry.get())
             return self.MyEntry.get()
         else:
@@ -341,7 +373,7 @@ class LabelEntry(tk.Frame):
             return self.MyEntry.get('1.0', tk.END)
 
     def set(self,newvalue,*args,**kwargs):
-        if self.parent.data.fields[self.label]['type'] in ('Entry','DateEntry'):
+        if 'Entry' in self.model.fields[self.label]['type'] :
             self.var.set(newvalue,*args,**kwargs)
         else:
             self.MyEntry.insert('1.0',newvalue,*args,**kwargs)
@@ -461,6 +493,7 @@ class LabelCheckbutton(tk.Frame):
         self.wa.grid(row=0,column=0,sticky='nswe',padx=5,pady=5)
         self.top.columnconfigure(0,weight=1)
 
+##VIEW##
 class ViewAll(ttk.Treeview):
     def __init__(self,parent,model,*args,**kwargs):
         super().__init__(parent,*args,**kwargs)
@@ -471,7 +504,7 @@ class ViewAll(ttk.Treeview):
                        
         for header in self.headers:
             self.heading(header,text=header)
-            self.column(header, minwidth=40, width=80,stretch=True)
+            self.column(header, minwidth=self.model.fields[header]['width'], width=self.model.fields[header]['width'],stretch=True)
 
         ybar=ttk.Scrollbar(parent,orient="vertical",command=self.yview)
         ybar.grid(row=0,column=1,sticky='nse')
@@ -515,7 +548,7 @@ class ViewAll(ttk.Treeview):
                 self.insert('', 'end', iid=counter, values=row_values)
                 counter += 1
         
-##VIEW##
+
 class MyView(tk.Frame):
     def __init__(self,parent,data,mode,commands):
         super().__init__(parent)
@@ -527,7 +560,7 @@ class MyView(tk.Frame):
         self.Fields={}
         for num,field in enumerate(self.data.fields.keys()):
             if self.data.fields[field]['type'] in ['Entry','DateEntry','Text']:
-                self.Fields[field]=LabelEntry(self,field)
+                self.Fields[field]=LabelEntry(self,field,self.data)
             elif self.data.fields[field]['type']=='Checkbox':
                 self.Fields[field]=LabelCheckbutton(self,field,
                                                     self.data,chckbt_labels=self.data.fields[field]['list']
@@ -598,10 +631,35 @@ class MyView(tk.Frame):
             self.button_edit.configure(state="disabled")
             self.button_save.configure(state="normal")
 
-class ComplexeFilter(tk.Frame):
+class ComplexFilter(tk.Frame):
     def __init__(self,parent,model,*args,**kwargs):
         super().__init__(parent,*args,**kwargs)
+        self.model=model
+        labels=[]
         
+        #todo : combine those two succesive block
+        for header in self.model.fields:
+            if self.model.fields[header].get('list',None) != None:
+                labels.append(header)
+        print(labels)
+
+        self.widgets={}
+        #self.vars={}
+        counter=0
+        for label in labels:
+            #self.vars[label]={}
+            self.model.fields[label]['list']
+            self.widgets[label] = LabelCheckbutton(self,label,model)
+            self.widgets[label].grid(row=counter,column=0)
+            counter+=1
+
+        self.widgets["date01"]=LabelEntry(self,"Date début",self.model,**kwargs)
+        self.widgets["date01"].grid(row=counter+1,column=0)
+        self.widgets["date02"]=LabelEntry(self,"Date fin",self.model,**kwargs)
+        self.widgets["date01"].grid(row=counter+2,column=1)
+
+            
+            
         pass
 
 
@@ -625,25 +683,30 @@ class MyApplication(tk.Tk):
         fb.grid(row=0,column=0,sticky='we',padx=5,pady=5)
         fb.columnconfigure(0,weight=0)
         fb.columnconfigure(1,weight=0)
-        fb.columnconfigure(2,weight=1)
+        fb.columnconfigure(2,weight=0)
+        fb.columnconfigure(3,weight=1)
         
-        self.button_new = ttk.Button(fb,text="New log",command = lambda : self.commands['new_log']("creation"))
-        self.button_all_filter = ttk.Button(fb,text="View All", command = self.button_switch)
+        self.button_new = ttk.Button(fb,text="New log",
+                                     command = lambda : self.commands['new_log']("creation"))
+        self.button_all_filter = ttk.Button(fb,text="View All",
+                                            command = self.button_switch)
         self.filter_var=tk.StringVar()
         self.filter = ttk.Entry(fb,textvariable=self.filter_var)
         self.filter_var.trace('w',self.filter_tree)
+        self.complex_filter = ttk.Button(fb,text="More Filter",
+                                         command = self.complex_filter)
         
         #todo : catch error if argument is neither creation or consultation
         self.button_new.grid(row=0,column=0,sticky='w',padx=5,pady=5)
         self.button_all_filter.grid(row=0,column=1,sticky='w',padx=5,pady=5)
-        self.filter.grid(row=0,column=2,sticky='we',padx=5,pady=5)
+        self.filter.grid(row=0,column=3,sticky='we',padx=5,pady=5)
+        self.complex_filter.grid(row=0,column=2,sticky='w',padx=5,pady=5)
         
-        self.geometry("500x200")
+        self.geometry("720x200")
         self.minsize(width=250, height=200)
         self.title("Historique")
-        self.maxsize(width=1000, height=500)
+        self.maxsize(width=1500, height=500)
         self.columnconfigure(0,weight=1)
-        #self.columnconfigure(1,weight=1)
         self.rowconfigure(0,weight=0)
         self.rowconfigure(1,weight=1)
 
@@ -660,8 +723,15 @@ class MyApplication(tk.Tk):
         self.viewall.populate(self.records,alarm=True)
         
         self.update_idletasks()
-
+        
         self.viewall.bind('<<TreeviewOpen>>', self.doubleclick_viewall)
+
+    def complex_filter(self):
+        top3 = tk.Toplevel()
+        top3.columnconfigure(0,weight=1)
+
+        complex_wid = ComplexFilter(top3,self.mdt)
+        complex_wid.grid(row=0,column=0,sticky='nswe')
 
     def button_switch(self):
         
@@ -742,17 +812,17 @@ class MyApplication(tk.Tk):
         pass
     
     def new_log(self,mode):
-        self.top1=tk.Toplevel(self)
+        top1=tk.Toplevel(self)
         self.mode=mode
-        self.mv=MyView(self.top1,self.mdt,self.mode,self.commands)
+        self.mv=MyView(top1,self.mdt,self.mode,self.commands)
         #another more specific way to put the cursor where we want in tk.Text
         #self.mv.Fields['Note'].MyEntry.mark_set("insert","1,0")
         self.mv.change_state("normal")
 
         if mode=="consultation":
-            self.top1.title("Consulting log")
+            top1.title("Consulting log")
         else :
-            self.top1.title("Creating log")
+            top1.title("Creating log")
 
             """auto fill date with today's date"""
             td=dt.date.today()
