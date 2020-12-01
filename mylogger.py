@@ -475,7 +475,7 @@ class LabelCheckbutton(tk.Frame):
             super().__init__(parent)
             """create an attribut to store the outer instance, so we can acces it later"""
             self.outer_instance=outer_instance
-            #self.parent=parent
+            self.parent=parent
             self.MyVar=tk.StringVar()
             lab=tk.Label(self,text="Enter new element :")
             lab.grid(row=0,column=0,sticky='we')
@@ -499,7 +499,8 @@ class LabelCheckbutton(tk.Frame):
             self.outer_instance.model.fields[self.outer_instance.label]['list'].append(new)
 
             self.outer_instance.generate_chckbt()
-            self.parent.destroy()
+            #self.parent.destroy()
+            self.outer_instance.parent.commands['quit_w'](self.outer_instance.top)
             self.outer_instance.update()
             self.outer_instance.model.save_lists()
 
