@@ -16,6 +16,7 @@ import csv, os, json
 #todo : update function for update treeview (destroypopulate)
 #todo : add widith column in MyData for each field for column width in treeview
 #todo : add checkbox filter by gens concerné et csociete
+#todo : add linebreak when checkbox options doesnt fit in one line
 
 #todo : think about adding a deleteentry option
 
@@ -29,26 +30,31 @@ class MyData:
         self.list_name=[]
 #        self.list_societe=['Roche Noire','Directimmo','Troc & Cash','MKR Property','Wave']
         self.list_societe=[]
+        self.list_status=['Note', 'En cours', 'Terminé']
         self.load_lists()
         
 
         self.fields={"Ref":{"type":'Entry',
                        "creation":{"visible":True,"state":"normal"},
+                        "modification":{"visible":True,"state":"normal"},
                        "consultation":{"visible":True,"state":"readonly"},
                         "width":50
                            },
                 "Date":{"type":'DateEntry',
                        "creation":{"visible":True,"state":"normal"},
+                        "modification":{"visible":True,"state":"normal"},
                        "consultation":{"visible":True,"state":"readonly"},
                         "width":70
                        },
                 "Note":{"type":'Text',
                        "creation":{"visible":True,"state":"normal"},
+                        "modification":{"visible":True,"state":"normal"},
                        "consultation":{"visible":True,"state":"normal"},
                         "width":200
                        },
                 "Les gens concernés":{"type":'Checkbox',
                                       "creation":{"visible":True,"state":"normal"},
+                                      "modification":{"visible":True,"state":"normal"},
                                       "consultation":{"visible":True,"state":"disabled"},
                                       "list":self.list_name,
                                       "command":"add_name",
@@ -56,17 +62,27 @@ class MyData:
                                       },
                 "Sociétés/Personnel":{"type":'Checkbox',
                                       "creation":{"visible":True,"state":"normal"},
+                                      "modification":{"visible":True,"state":"normal"},
                                       "consultation":{"visible":True,"state":"disabled"},
                                       "list":self.list_societe,
                                       "command":"add_societe",
                                       "width":150
                                      },
                 "Alarme":{"type":'DateEntry',
-                       "creation":{"visible":True,"state":"normal"},
+                       "creation":{"visible":True,"state":"disabled"},
+                        "modification":{"visible":True,"state":"normal"},
                        "consultation":{"visible":True,"state":"disabled"},
+                       "width":70
+                         },
+                "Status":{"type":'ComboboxEntry',
+                       "creation":{"visible":False,"state":"normal"},
+                        "modification":{"visible":True,"state":"normal"},
+                       "consultation":{"visible":True,"state":"disabled"},
+                          "list":self.list_status,
                        "width":70
                          }
                     }
+        
         self.filter_fields={"Date début":{"type":'DateEntry',
                                       "creation":{"visible":True,"state":"normal"},
                                       "consultation":{"visible":True,"state":"disabled"},
@@ -83,7 +99,8 @@ class MyData:
                                       "creation":{"visible":True,"state":"normal"},
                                       "consultation":{"visible":True,"state":"disabled"},
                                       "width":150
-                                     }
+                                     },
+                            "Status":self.fields["Status"],
                             }
         self.new_file()
         
@@ -112,6 +129,12 @@ class MyData:
         
         if mode =="creation":
             #here data is a dict
+            if 'Status' not in data.keys() or data['Status'] in [None, '']:
+                if data['Alarme'] in [None,'','None']:
+                    data['Status']='Note'
+                else:
+                    data['Status']='None'
+            print(data)
             for field,value in data.items():
                 if value=='':
                     data[field]='None'
@@ -124,9 +147,12 @@ class MyData:
         else:
             #here data is a list of dict
             for row in data:
+                print(data)
                 for field,value in row.items():
-                    if value=='':
+                    if value=='' or value==None:
                         row[field]='None'
+                    if field == 'Status' and value not in self.list_status:
+                        value='Note'
 
             with open(self.filename, 'w',newline='',encoding='utf-8') as fh:
                 csvwriter = csv.DictWriter(fh,
@@ -238,6 +264,8 @@ what you can do to read it multiple time is :
            
 
 ##WIDGETS##
+class MyComboboxEntry(ttk.Combobox):
+    pass
 
 class MyDateEntry(tk.Frame):
     
@@ -346,7 +374,12 @@ class LabelEntry(tk.Frame):
         elif checker[label]['type']=='DateEntry':
             self.MyEntry=MyDateEntry(self,
                                      textvariable=self.var,
-                                     **kwargs)    
+                                     **kwargs)
+        elif checker[label]['type']=='ComboboxEntry':
+            self.MyEntry=ttk.Combobox(self,
+                                     textvariable=self.var,
+                                     values=checker[label]['list'],
+                                     **kwargs)
         else:
             self.MyEntry=tk.Text(self,
                                  height=5,
@@ -364,12 +397,12 @@ class LabelEntry(tk.Frame):
         
 
     def get(self):
-        print(self.model.fields[self.label]['type'])
+        #print(self.model.fields[self.label]['type'])
         if 'Entry' in self.model.fields[self.label]['type'] :
-            print(self.MyEntry.get())
+            #print(self.MyEntry.get())
             return self.MyEntry.get()
         else:
-            print(self.MyEntry.get('1.0', tk.END))
+            #print(self.MyEntry.get('1.0', tk.END))
             return self.MyEntry.get('1.0', tk.END)
 
     def set(self,newvalue,*args,**kwargs):
@@ -386,6 +419,8 @@ class LabelCheckbutton(tk.Frame):
         super().__init__(parent,**kwargs)
         self.model=model
         self.label=label
+        self.parent=parent
+        self.commands=self.parent.commands
         
         
         if isinstance(model.fields[self.label]['list'],list):
@@ -409,6 +444,8 @@ class LabelCheckbutton(tk.Frame):
                                        width=3,
                                        )
         self.generate_chckbt()
+
+        self.name=None
 
     def generate_chckbt(self):
         """creating multiple var"""
@@ -438,7 +475,7 @@ class LabelCheckbutton(tk.Frame):
             super().__init__(parent)
             """create an attribut to store the outer instance, so we can acces it later"""
             self.outer_instance=outer_instance
-            self.parent=parent
+            #self.parent=parent
             self.MyVar=tk.StringVar()
             lab=tk.Label(self,text="Enter new element :")
             lab.grid(row=0,column=0,sticky='we')
@@ -450,6 +487,9 @@ class LabelCheckbutton(tk.Frame):
             self.columnconfigure(0,weight=1)
             
             self.MyEntry.bind('<Return>',self.save_new)
+            
+            
+            #self.protocol('WM_DELETE_WINDOW', lambda : self.parent.commands['quit_w'](self))
 
         def get(self):
             return self.MyVar.get()
@@ -462,6 +502,7 @@ class LabelCheckbutton(tk.Frame):
             self.parent.destroy()
             self.outer_instance.update()
             self.outer_instance.model.save_lists()
+
 
     def grid(self,row=None,column=None,sticky='WE',**kwargs):
         super().grid(row=row,column=column,sticky=sticky,**kwargs)
@@ -486,12 +527,25 @@ class LabelCheckbutton(tk.Frame):
             self.dict_var[name].set(value)
 
     def add_new(self):
-        self.top=tk.Toplevel(self)
+        self.top=tk.Toplevel(self,name='top2')
+        self.name=self.top
+        print(self.name)
+        
         self.top.title("New element")
         self.top.geometry("250x80")
         self.wa=self.WidgetAdd(self.top,self)
         self.wa.grid(row=0,column=0,sticky='nswe',padx=5,pady=5)
+        self.top.grab_set()
         self.top.columnconfigure(0,weight=1)
+
+        #print(str(self.top))
+        self.top.protocol('WM_DELETE_WINDOW', lambda : self.parent.commands['quit_w'](self.top))
+
+    def quit_w(self):
+        self.top.destroy()
+        self.parent.parent.top1.grab_set()
+
+
 
 ##VIEW##
 class ViewAll(ttk.Treeview):
@@ -516,7 +570,34 @@ class ViewAll(ttk.Treeview):
     def grid(self,*args,row=None,column=None,sticky='nswe',**kwargs):
         super().grid(*args,row=row,column=column,sticky=sticky,**kwargs)
 
-    def populate(self,data,alarm=False):
+    def formating(self,row_data):
+        #row_data is a dict
+        #print('row data')
+        #print(row_data)
+        row_values=[]
+        for header in self.headers:
+            #todo : what if ml is empty
+            if header in ("Les gens concernés", "Sociétés/Personnel"):
+                ml=[]
+                print(header)
+                if type(row_data[header])!=dict:
+                    mydict=eval(row_data[header])
+                else:
+                    mydict=row_data[header]
+                for key,value in mydict.items():
+                    if value==1:
+                        ml.append(key)
+                ml=", ".join(ml)
+                row_values.append(ml)
+            else:
+                row_values.append(row_data[header])
+        for index in range(0,len(row_values)):
+            if row_values[index]=='None':
+                row_values[index]=''
+        #return a list
+        return row_values
+
+    def populate(self,data,alarme=False):
         """delete rows in treeview"""
         children=self.get_children()
         if len(children) > 0 :
@@ -524,6 +605,29 @@ class ViewAll(ttk.Treeview):
                 self.delete(child)
                 
         counter=0
+        """formating data from dict to str for treeview"""
+        for row_data in data:
+            row_values=self.formating(row_data)
+
+            #row_values = [row_data[header] for header in self.headers ]
+
+            if alarme==True:
+                if row_data['Alarme']!='':
+                    self.insert('', 'end', iid=counter, values=row_values)
+                    counter += 1
+            else:                
+                self.insert('', 'end', iid=counter, values=row_values)
+                counter += 1        
+    """
+    def populate(self,data,alarme=False):
+        #delete rows in treeview
+        children=self.get_children()
+        if len(children) > 0 :
+            for child in children:
+                self.delete(child)
+                
+        counter=0
+        #formating data from dict to str for treeview
         for row_data in data:
             row_values=[]
             for header in self.headers:
@@ -540,13 +644,14 @@ class ViewAll(ttk.Treeview):
 
             #row_values = [row_data[header] for header in self.headers ]
 
-            if alarm==True:
+            if alarme==True:
                 if row_data['Alarme']!='':
                     self.insert('', 'end', iid=counter, values=row_values)
                     counter += 1
             else:                
                 self.insert('', 'end', iid=counter, values=row_values)
                 counter += 1
+    """
         
 
 class MyView(tk.Frame):
@@ -555,17 +660,19 @@ class MyView(tk.Frame):
         #todo : add button edit and grey save
         self.mode=mode
         self.data=data
+        self.parent=parent
         self.commands=commands
         """we put our Fields's widget in a dict"""
         self.Fields={}
         for num,field in enumerate(self.data.fields.keys()):
-            if self.data.fields[field]['type'] in ['Entry','DateEntry','Text']:
-                self.Fields[field]=LabelEntry(self,field,self.data)
-            elif self.data.fields[field]['type']=='Checkbox':
-                self.Fields[field]=LabelCheckbutton(self,field,
-                                                    self.data,chckbt_labels=self.data.fields[field]['list']
-                                                    )
-            self.Fields[field].grid(row=num,column=0,sticky='we',pady=2)
+            if self.data.fields[field][self.mode]['visible']:
+                if self.data.fields[field]['type'] in ['Entry','DateEntry','Text','ComboboxEntry']:
+                    self.Fields[field]=LabelEntry(self,field,self.data)
+                elif self.data.fields[field]['type']=='Checkbox':
+                    self.Fields[field]=LabelCheckbutton(self,field,
+                                                        self.data,chckbt_labels=self.data.fields[field]['list']
+                                                        )
+                self.Fields[field].grid(row=num,column=0,sticky='we',pady=2)
 
         self.update_idletasks()
 
@@ -578,6 +685,7 @@ class MyView(tk.Frame):
         self.button_save.grid(row=10,column=0,sticky='e')
 
         self.Fields['Note'].MyEntry.focus_set()
+        
 
 
     def get(self):
@@ -596,7 +704,7 @@ class MyView(tk.Frame):
 
     def reset(self):
         for field,widget in self.Fields.items():
-            if field in ('Ref','Date','Alarme'):
+            if field in ('Ref','Date','Alarme','Status'):
                 widget.MyEntry.delete(0,tk.END)
             elif field == 'Note':
                 widget.MyEntry.delete('1.0',tk.END)
@@ -612,7 +720,7 @@ class MyView(tk.Frame):
             color='white'
             
         for field,widget in self.Fields.items():
-            if field in ("Ref","Note"):
+            if field in ("Ref","Note","Status"):
                 widget.MyEntry.configure(state=state,background=color)
             elif field in ("Date","Alarme"):
                 widget.MyEntry.entry.configure(state=state,background=color)
@@ -650,13 +758,13 @@ class ComplexFilter(tk.Frame):
             #self.vars[label]={}
             self.model.fields[label]['list']
             self.widgets[label] = LabelCheckbutton(self,label,model)
-            self.widgets[label].grid(row=counter,column=0)
+            self.widgets[label].grid(row=counter,column=0,columnspan=2)
             counter+=1
 
         self.widgets["date01"]=LabelEntry(self,"Date début",self.model,**kwargs)
-        self.widgets["date01"].grid(row=counter+1,column=0)
+        self.widgets["date01"].grid(row=counter+1,column=0,sticky='w')
         self.widgets["date02"]=LabelEntry(self,"Date fin",self.model,**kwargs)
-        self.widgets["date01"].grid(row=counter+2,column=1)
+        self.widgets["date02"].grid(row=counter+1,column=1,sticky='w')
 
             
             
@@ -670,13 +778,14 @@ class MyApplication(tk.Tk):
     def __init__(self,*args,**kwargs):
         super().__init__(*args,**kwargs)
         self.mode="consultation"
-        self.alarm=True
+        self.alarme=True
         self.mdt=MyData()
         self.selected=None
         self.commands={'save_entry' : self.save_entry,
                        'load_records' : self.load_records,
                        'new_log' : self.new_log,
-                       'mode_edit': self.mode_edit
+                       'mode_edit': self.mode_edit,
+                       'quit_w': self.quit_w
                        }
         self.records=self.mdt.load_records()
         fb=tk.Frame(self,relief='solid')
@@ -702,7 +811,7 @@ class MyApplication(tk.Tk):
         self.filter.grid(row=0,column=3,sticky='we',padx=5,pady=5)
         self.complex_filter.grid(row=0,column=2,sticky='w',padx=5,pady=5)
         
-        self.geometry("720x200")
+        self.geometry("800x200")
         self.minsize(width=250, height=200)
         self.title("Historique")
         self.maxsize(width=1500, height=500)
@@ -720,7 +829,7 @@ class MyApplication(tk.Tk):
         self.viewall.columnconfigure(0,weight=1)
         self.viewall.rowconfigure(0,weight=1)
 
-        self.viewall.populate(self.records,alarm=True)
+        self.viewall.populate(self.records,alarme=True)
         
         self.update_idletasks()
         
@@ -735,14 +844,14 @@ class MyApplication(tk.Tk):
 
     def button_switch(self):
         
-        if self.alarm==True:
-            self.alarm=False
+        if self.alarme==True:
+            self.alarme=False
             self.button_all_filter.configure(text="View Alarm Only")
-            self.viewall.populate(self.records,alarm=self.alarm)
+            self.viewall.populate(self.records,alarme=self.alarme)
         else:
-            self.alarm=True
+            self.alarme=True
             self.button_all_filter.configure(text="View All")
-            self.viewall.populate(self.records,alarm=True)
+            self.viewall.populate(self.records,alarme=True)
 
 
     def filter_tree(self,*args):
@@ -752,7 +861,7 @@ class MyApplication(tk.Tk):
         for iid in init_iids:
             self.viewall.delete(iid)
 
-        self.viewall.populate(self.records,alarm=self.alarm)
+        self.viewall.populate(self.records,alarme=self.alarme)
         characters = self.filter.get().lower()
         if characters=='':
             return
@@ -770,27 +879,53 @@ class MyApplication(tk.Tk):
         
 
     def save_entry(self):
-
+            #todo : add for mode 'modification'
             if self.mode=="creation":
                 record=self.mv.get()
-                values = [record[header] for header in self.mdt.fields.keys() ]
+                values = [record[header] for header in self.mdt.fields.keys() if self.mdt.fields[header][self.mode]['visible']]
 
                 print(record)
                 self.mdt.save_entry(record,self.mode)
                 self.mv.reset()
                 self.top1.destroy()
                 self.update()
+                
+                values=self.viewall.formating(record)
 
                 #we update viewall now if new log or an update        
-                if self.selected==None:
+                if record['Alarme'] not in ['','None',None] and self.alarme==True:
                     self.viewall.insert('', 'end', iid=len(self.records)+1, values=values)
-                else:
+                elif record['Alarme'] in ['','None',None] and self.alarme==False:
+                    self.viewall.insert('', 'end', iid=len(self.records)+1, values=values)
+                
+                        
+            elif self.mode=="modification":
+                record=self.mv.get()
+                values = [record[header] for header in self.mdt.fields.keys() if self.mdt.fields[header][self.mode]['visible']]
+
+                self.records[int(self.selected)]=record
+                self.mdt.save_entry(self.records,self.mode)
+                self.mv.reset()
+                self.top1.destroy()
+                self.update()
+
+                #print(record)
+                values=self.viewall.formating(record)
+
+                #we update viewall now if new log or an update        
+                if record['Alarme'] not in ['','None',None] and self.alarme==True:
                     self.viewall.item(self.selected, text='', values=values)
+                elif record['Alarme'] in ['','None',None] and self.alarme==False:
+                    self.viewall.item(self.selected, text='', values=values)
+                
+
+                
             else:
+                #todo: voir si on en a encore besoin. sinon, effacez ce block
                 record=self.mv.get()
                 values = [record[header] for header in self.mdt.fields.keys() ]
 
-                print(record)
+                #print(record)
                 self.records[int(self.selected)]=record
                 
                 self.mdt.save_entry(self.records,self.mode)
@@ -812,35 +947,40 @@ class MyApplication(tk.Tk):
         pass
     
     def new_log(self,mode):
-        top1=tk.Toplevel(self)
+        self.top1=tk.Toplevel(self,name='top1')
         self.mode=mode
-        self.mv=MyView(top1,self.mdt,self.mode,self.commands)
+        self.mv=MyView(self.top1,self.mdt,self.mode,self.commands)
+
+        print(self.top1)
+        
+        self.top1.protocol('WM_DELETE_WINDOW', lambda : self.quit_w(self.nametowidget('top1')))
         #another more specific way to put the cursor where we want in tk.Text
         #self.mv.Fields['Note'].MyEntry.mark_set("insert","1,0")
         self.mv.change_state("normal")
 
         if mode=="consultation":
-            top1.title("Consulting log")
+            self.top1.title("Consulting log")
         else :
-            top1.title("Creating log")
+            self.top1.title("Creating log")
 
             """auto fill date with today's date"""
             td=dt.date.today()
             self.mv.Fields['Date'].set(td.strftime("%d/%m/%Y"))
 
             """auto fill ref"""
-            if len(self.records)==0:
+            if len(self.records)==0 :
                 newref = "ref0001"
             else :
                 lastref = self.records[-1]['Ref']
                 refnum=lastref.split('ref')[1]
                 newnum=int(refnum)+1
                 newref='ref'+str('{:04d}'.format(newnum))
-                #print(newref)
-                self.mv.Fields['Ref'].set(newref)
+            self.mv.Fields['Ref'].set(newref)
 
         self.mv.grid(row=0,column=0,sticky='nswe',padx=5,pady=5)
+        self.top1.grab_set()
         self.columnconfigure(0,weight=1)
+
         
     def doubleclick_viewall(self,*args):
         self.mode="consultation"
@@ -859,7 +999,9 @@ class MyApplication(tk.Tk):
                 break
 
     def mode_edit(self):
-        self.mv.mode="creation"
+        self.mode="modification"
+        self.mv.mode="modification"
+        
         self.mv.change_state("normal")
         self.update()
         self.mv.update()
@@ -867,6 +1009,24 @@ class MyApplication(tk.Tk):
     def print_(self):
         print(self.var_list_name.get())
         print(self.mv.Fields["Les gens concernés"].chckbt_labels)
+
+    def quit_w(self,w):
+        top1=self.nametowidget('.top1')
+        if w==top1:
+            self.grab_set()
+        try :
+            top2=self.nametowidget('.top1.!myview.!labelcheckbutton.top2')
+            if w==top2:
+                top1.grab_set()
+        except:
+            print('top2 missing')
+        finally:
+            w.destroy()
+
+        
+            
+
+    
 
 
 if __name__=='__main__':
