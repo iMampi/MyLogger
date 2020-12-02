@@ -7,7 +7,6 @@ import csv, os, json
 
 #todo : add "select all" for chackbox label
 #todo : implement messagebox
-#todo : after reset, set a new ref automatically
 #todo : arrange size of main window
 #todo : ask confirmation when something has changed qhen quiting
 #todo : auto formating new elemetn : first letter in capital
@@ -17,7 +16,7 @@ import csv, os, json
 #todo : add widith column in MyData for each field for column width in treeview
 #todo : add checkbox filter by gens concerné et csociete
 #todo : add linebreak when checkbox options doesnt fit in one line
-
+#todo: gestion des alarmes : ceux en cours, sceux passé, ceux terminés, récurrence,...
 #todo : think about adding a deleteentry option
 
 ##BASE##
@@ -100,7 +99,7 @@ class MyData:
                                       "consultation":{"visible":True,"state":"disabled"},
                                       "width":150
                                      },
-                            "Status":self.fields["Status"],
+                            "Status":self.fields["Status"]
                             }
         self.new_file()
         
@@ -134,7 +133,7 @@ class MyData:
                     data['Status']='Note'
                 else:
                     data['Status']='None'
-            print(data)
+            #print(data)
             for field,value in data.items():
                 if value=='':
                     data[field]='None'
@@ -147,7 +146,7 @@ class MyData:
         else:
             #here data is a list of dict
             for row in data:
-                print(data)
+                #print(data)
                 for field,value in row.items():
                     if value=='' or value==None:
                         row[field]='None'
@@ -274,6 +273,7 @@ class MyDateEntry(tk.Frame):
         super().__init__(parent,*args,**kwargs)
         
         self.entry_var=textvariable
+        self.parent=parent
         
         self.entry=ttk.Entry(self,textvariable=self.entry_var,state=state)
         vcmd=self.entry.register(self._validate)
@@ -291,25 +291,34 @@ class MyDateEntry(tk.Frame):
 
     def top_cal(self):
         
-        self.top=tk.Toplevel()
-        self.top.update()
-        
+        self.top=tk.Toplevel(self,name='top3')
+        #must add focus first, otherwise the grab won't work on first click, but on second click
+        self.top.focus_set()
+        self.top.grab_set()
+
+        self.top.update_idletasks()
+
         self.cal_var=tk.StringVar()
         self.cal=Calendar(self.top,selectmode = 'day',
                           textvariable = self.cal_var,
                           date_pattern = 'dd/mm/y',
                           state = 'normal'
                           )
+        self.cal.update_idletasks()
         self.top.bind('<Button-1>',self.select_date)
 
         self.cal.grid(row=0,column=0)
+        
+        self.top.protocol('WM_DELETE_WINDOW', lambda : self.parent.parent.commands['quit_w'](self.top))
+
 
     def select_date(self,event):
         
         value=self.cal.get_date()
         if value!='':
             self.entry_var.set(value)
-            self.top.destroy()
+            self.parent.parent.commands['quit_w'](self.top)
+            #self.top.destroy()
 
     def _validate(self, proposed, current, char, event, index, action):
         valid=False
@@ -353,12 +362,13 @@ class LabelEntry(tk.Frame):
     #todo: make it so it deal with tk.text too
     def __init__(self,parent,label,model,**kwargs):
         super().__init__(parent,**kwargs)
-            
+
+        self.parent=parent
         self.model=model
         self.label=label
         self.var=tk.StringVar()
         self.MyLabel=ttk.Label(self,text=label)
-        print(parent)
+        #print(parent)
         if isinstance(parent,MyView):
             
             checker=self.model.fields
@@ -488,9 +498,6 @@ class LabelCheckbutton(tk.Frame):
             
             self.MyEntry.bind('<Return>',self.save_new)
             
-            
-            #self.protocol('WM_DELETE_WINDOW', lambda : self.parent.commands['quit_w'](self))
-
         def get(self):
             return self.MyVar.get()
 
@@ -499,7 +506,6 @@ class LabelCheckbutton(tk.Frame):
             self.outer_instance.model.fields[self.outer_instance.label]['list'].append(new)
 
             self.outer_instance.generate_chckbt()
-            #self.parent.destroy()
             self.outer_instance.parent.commands['quit_w'](self.outer_instance.top)
             self.outer_instance.update()
             self.outer_instance.model.save_lists()
@@ -519,7 +525,7 @@ class LabelCheckbutton(tk.Frame):
     def set(self,dict_value):
         #todo : add a len checker. checker that all fields are there
         """dict value must be a dict """
-        """when loaded from csv, data is all string. we convert it into a dict"""
+        """when loaded from csv, data is all string. we convert it into a dict if needed"""
         data=dict_value
         if type(dict_value)!=dict:
             data=eval(dict_value)
@@ -530,7 +536,7 @@ class LabelCheckbutton(tk.Frame):
     def add_new(self):
         self.top=tk.Toplevel(self,name='top2')
         self.name=self.top
-        print(self.name)
+        #print(self.name)
         
         self.top.title("New element")
         self.top.geometry("250x80")
@@ -541,11 +547,6 @@ class LabelCheckbutton(tk.Frame):
 
         #print(str(self.top))
         self.top.protocol('WM_DELETE_WINDOW', lambda : self.parent.commands['quit_w'](self.top))
-
-    def quit_w(self):
-        self.top.destroy()
-        self.parent.parent.top1.grab_set()
-
 
 
 ##VIEW##
@@ -580,7 +581,7 @@ class ViewAll(ttk.Treeview):
             #todo : what if ml is empty
             if header in ("Les gens concernés", "Sociétés/Personnel"):
                 ml=[]
-                print(header)
+                #print(header)
                 if type(row_data[header])!=dict:
                     mydict=eval(row_data[header])
                 else:
@@ -673,17 +674,18 @@ class MyView(tk.Frame):
                     self.Fields[field]=LabelCheckbutton(self,field,
                                                         self.data,chckbt_labels=self.data.fields[field]['list']
                                                         )
-                self.Fields[field].grid(row=num,column=0,sticky='we',pady=2)
+                self.Fields[field].grid(row=num,column=0,sticky='we',pady=2,columnspan=2)
 
         self.update_idletasks()
 
         self.columnconfigure(0,weight=1)
 
+        self.button_save=ttk.Button(self,text='Save',command=self.commands['save_entry'])
+        self.button_save.grid(row=10,column=0,sticky='e')
+
         self.button_edit=ttk.Button(self,text='Edit',command=self.commands['mode_edit'])
         self.button_edit.grid(row=10,column=1,sticky='e')
 
-        self.button_save=ttk.Button(self,text='Save',command=self.commands['save_entry'])
-        self.button_save.grid(row=10,column=0,sticky='e')
 
         self.Fields['Note'].MyEntry.focus_set()
         
@@ -814,7 +816,7 @@ class MyApplication(tk.Tk):
         
         self.geometry("800x200")
         self.minsize(width=250, height=200)
-        self.title("Historique")
+        self.title('Historique - Avec Alarme Uniquement')
         self.maxsize(width=1500, height=500)
         self.columnconfigure(0,weight=1)
         self.rowconfigure(0,weight=0)
@@ -848,9 +850,11 @@ class MyApplication(tk.Tk):
         if self.alarme==True:
             self.alarme=False
             self.button_all_filter.configure(text="View Alarm Only")
+            self.title('Historique - Tout')
             self.viewall.populate(self.records,alarme=self.alarme)
         else:
             self.alarme=True
+            self.title('Historique - Avec Alarme Uniquement')
             self.button_all_filter.configure(text="View All")
             self.viewall.populate(self.records,alarme=True)
 
@@ -885,7 +889,7 @@ class MyApplication(tk.Tk):
                 record=self.mv.get()
                 values = [record[header] for header in self.mdt.fields.keys() if self.mdt.fields[header][self.mode]['visible']]
 
-                print(record)
+                #print(record)
                 self.mdt.save_entry(record,self.mode)
                 self.mv.reset()
                 self.top1.destroy()
@@ -918,27 +922,6 @@ class MyApplication(tk.Tk):
                     self.viewall.item(self.selected, text='', values=values)
                 elif record['Alarme'] in ['','None',None] and self.alarme==False:
                     self.viewall.item(self.selected, text='', values=values)
-                
-
-                
-            else:
-                #todo: voir si on en a encore besoin. sinon, effacez ce block
-                record=self.mv.get()
-                values = [record[header] for header in self.mdt.fields.keys() ]
-
-                #print(record)
-                self.records[int(self.selected)]=record
-                
-                self.mdt.save_entry(self.records,self.mode)
-                self.mv.reset()
-                self.top1.destroy()
-                self.update()
-
-                #we update viewall now if new log or an update        
-                if self.selected==None:
-                    self.viewall.insert('', 'end', iid=len(self.records)+1, values=values)
-                else:
-                    self.viewall.item(self.selected, text='', values=values)
 
             self.records=self.mdt.load_records()
         
@@ -952,7 +935,7 @@ class MyApplication(tk.Tk):
         self.mode=mode
         self.mv=MyView(self.top1,self.mdt,self.mode,self.commands)
 
-        print(self.top1)
+        #print(self.top1)
         
         self.top1.protocol('WM_DELETE_WINDOW', lambda : self.quit_w(self.nametowidget('top1')))
         #another more specific way to put the cursor where we want in tk.Text
@@ -1021,13 +1004,14 @@ class MyApplication(tk.Tk):
                 top1.grab_set()
         except:
             print('top2 missing')
+        try :
+            top3=self.nametowidget('.top1.!myview.!labelentry2.!mydateentry.top3')
+            if w==top3:
+                top1.grab_set()
+        except:
+            print('top3 missing')
         finally:
             w.destroy()
-
-        
-            
-
-    
 
 
 if __name__=='__main__':
