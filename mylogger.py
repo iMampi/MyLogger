@@ -6,8 +6,6 @@ import csv, os, json
 
 
 #todo : add "select all" for chackbox label
-#todo : implement messagebox
-#todo : arrange size of main window
 #todo : les champs obligatoires lors de sauvegarde
 #todo : compare the memory usage of the two approach for updating treeview . destroy populate vs update just 1 entry
 #todo : update function for update treeview (destroypopulate)
@@ -16,6 +14,7 @@ import csv, os, json
 #todo : add linebreak when checkbox options doesnt fit in one line
 #todo: gestion des alarmes : ceux en cours, sceux passé, ceux terminés, récurrence,...
 #todo : think about adding a deleteentry option
+#todo : make it so "ref" always stays 'disabled' whatever the mode
 
 ##BASE##
 class MyData:
@@ -33,19 +32,23 @@ class MyData:
                        "creation":{"visible":True,"state":"normal"},
                         "modification":{"visible":True,"state":"normal"},
                        "consultation":{"visible":True,"state":"readonly"},
-                        "width":50
+                        "width":50,
+                            "req":True
                            },
                 "Date":{"type":'DateEntry',
                        "creation":{"visible":True,"state":"normal"},
                         "modification":{"visible":True,"state":"normal"},
                        "consultation":{"visible":True,"state":"readonly"},
-                        "width":70
+                        "width":70,
+                        "req":True
+
                        },
                 "Note":{"type":'Text',
                        "creation":{"visible":True,"state":"normal"},
                         "modification":{"visible":True,"state":"normal"},
                        "consultation":{"visible":True,"state":"normal"},
-                        "width":200
+                        "width":200,
+                       "req":True
                        },
                 "Les gens concernés":{"type":'Checkbox',
                                       "creation":{"visible":True,"state":"normal"},
@@ -53,7 +56,9 @@ class MyData:
                                       "consultation":{"visible":True,"state":"disabled"},
                                       "list":self.list_name,
                                       "command":"add_name",
-                                      "width":150
+                                      "width":150,
+                                        "req":True
+                                      
                                       },
                 "Sociétés/Personnel":{"type":'Checkbox',
                                       "creation":{"visible":True,"state":"normal"},
@@ -61,20 +66,25 @@ class MyData:
                                       "consultation":{"visible":True,"state":"disabled"},
                                       "list":self.list_societe,
                                       "command":"add_societe",
-                                      "width":150
+                                      "width":150,
+                                     "req":True
+
                                      },
                 "Alarme":{"type":'DateEntry',
                        "creation":{"visible":True,"state":"disabled"},
                         "modification":{"visible":True,"state":"normal"},
                        "consultation":{"visible":True,"state":"disabled"},
-                       "width":70
+                       "width":70,
+                          "req":False
                          },
                 "Status":{"type":'ComboboxEntry',
                        "creation":{"visible":False,"state":"normal"},
                         "modification":{"visible":True,"state":"normal"},
                        "consultation":{"visible":True,"state":"disabled"},
                           "list":self.list_status,
-                       "width":70
+                       "width":70,
+                          "req":True
+
                          }
                     }
         
@@ -124,28 +134,58 @@ class MyData:
         
         if mode =="creation":
             #here data is a dict
+            #todo : remove ll those verification to put it in our application part
             if 'Status' not in data.keys() or data['Status'] in [None, '']:
                 if data['Alarme'] in [None,'','None']:
                     data['Status']='Note'
                 else:
                     data['Status']='None'
+                    
             for field,value in data.items():
-                if value=='':
+                if value in ['','\n']:
                     data[field]='None'
+
+            
+                
+
+            
             with open(self.filename, 'a',newline='',encoding='utf-8') as fh:
                 csvwriter = csv.DictWriter(fh,
                                         fieldnames=[x for x in self.fields.keys()],
                                         delimiter=";"
                                         )
                 csvwriter.writerow(data)
+            return True
+        
         else:
             #here data is a list of dict
+            #todo : remove ll those verification to put it in our application part
+
             for row in data:
                 for field,value in row.items():
-                    if value=='' or value==None:
+                    if value=='' or value==None or value=='\n':
                         row[field]='None'
                     if field == 'Status' and value not in self.list_status:
                         value='Note'
+
+##                empty_req_fields={}
+##                for key,value in row.items():
+##                    empty_req_fields[key]=False
+##                    if self.fields[key]['req']:
+##                        if type(value)==dict:
+##                            if 1 not in value.values():
+##                                empty_req_fields[key]=True
+##                        else:
+##                            if value in [None, '', '\n','None']:
+##                                empty_req_fields[key]=True
+##                print(empty_req_fields)
+##                if any(empty_req_fields.values()):
+##                    messagebox.showinfo(title='Warning',
+##                                        message='Ces champs ne peuvent être vides:',
+##                                        detail='{}'.format(', '.join([key for key,value in empty_req_fields.items() if value]))
+##                                        )
+##                    return False
+
 
             with open(self.filename, 'w',newline='',encoding='utf-8') as fh:
                 csvwriter = csv.DictWriter(fh,
@@ -155,6 +195,7 @@ class MyData:
                 csvwriter.writeheader()
                 for row in data:
                     csvwriter.writerow(row)
+            return True
 
             
             
@@ -334,9 +375,17 @@ class MyDateEntry(tk.Frame):
                 valid = char=='/'
             else:
                 valid=False
+        elif event == 'focusin':
+            valid= True
+            
         return valid
 
     def _invalidate(self, proposed, current, char, event, index, action):
+        print(proposed, current, char, event, index, action)
+          
+        messagebox.showinfo(title='Warning',
+                            message='Date non valide')
+
         pass
 
     def get(self):
@@ -712,8 +761,11 @@ class MyView(tk.Frame):
             color='white'
             
         for field,widget in self.Fields.items():
-            if field in ("Ref","Note","Status"):
+            if field in ("Note","Status"):
                 widget.MyEntry.configure(state=state,background=color)
+            elif field=="Ref":
+                widget.MyEntry.configure(state="disabled",background=color)
+
             elif field in ("Date","Alarme"):
                 widget.MyEntry.entry.configure(state=state,background=color)
             else :
@@ -872,31 +924,75 @@ class MyApplication(tk.Tk):
         
 
     def save_entry(self):
+            
             if self.mode=="creation":
                 record=self.mv.get()
                 values = [record[header] for header in self.mdt.fields.keys() if self.mdt.fields[header][self.mode]['visible']]
 
-                #print(record)
-                self.mdt.save_entry(record,self.mode)
-                self.mv.reset()
-                self.top1.destroy()
-                self.update()
-                
-                values=self.viewall.formating(record)
+                #check if there is empty field in the modified record
+                empty_req_fields={}
+                for key,value in record.items():
+                    empty_req_fields[key]=False
+                    if self.mdt.fields[key]['req']:
+                        if type(value)==dict:
+                            if 1 not in value.values():
+                                empty_req_fields[key]=True
+                        elif self.mdt.fields[key]['type']=='DateEntry':
+                            try:
+                                dt.datetime.strptime(value,"%d/%m/%Y")
+                            except:
+                                empty_req_fields[key]=True
+                        else:
+                            if value in [None, '', '\n','None']:
+                                empty_req_fields[key]=True
+                if any(empty_req_fields.values()):
+                    messagebox.showinfo(title='Warning',
+                                        message='Ces champs ne peuvent être vides ou leurs données sont non-valides :',
+                                        detail='{}'.format(', '.join([key for key,value in empty_req_fields.items() if value]))
+                                        )
+                    return
 
-                #we update viewall with new log     
-                if record['Alarme'] not in ['','None',None] and self.alarme==True:
-                    self.viewall.insert('', 'end', iid=len(self.records)+1, values=values)
-                elif record['Alarme'] in ['','None',None] and self.alarme==False:
-                    self.viewall.insert('', 'end', iid=len(self.records)+1, values=values)
+
+                self.mdt.save_entry(record,self.mode)
+                if saved:
+                    self.mv.reset()
+                    self.top1.destroy()
+                    self.update()
+                    
+                    values=self.viewall.formating(record)
+
+                    #we update viewall with new log     
+                    if record['Alarme'] not in ['','None',None] and self.alarme==True:
+                        self.viewall.insert('', 'end', iid=len(self.records)+1, values=values)
+                    elif record['Alarme'] in ['','None',None] and self.alarme==False:
+                        self.viewall.insert('', 'end', iid=len(self.records)+1, values=values)
                 
                         
             elif self.mode=="modification":
                 record=self.mv.get()
                 values = [record[header] for header in self.mdt.fields.keys() if self.mdt.fields[header][self.mode]['visible']]
 
+                #check if there is empty field in the modified record
+                empty_req_fields={}
+                for key,value in record.items():
+                    empty_req_fields[key]=False
+                    if self.mdt.fields[key]['req']:
+                        if type(value)==dict:
+                            if 1 not in value.values():
+                                empty_req_fields[key]=True
+                        else:
+                            if value in [None, '', '\n','None']:
+                                empty_req_fields[key]=True
+                if any(empty_req_fields.values()):
+                    messagebox.showinfo(title='Warning',
+                                        message='Ces champs ne peuvent être vides:',
+                                        detail='{}'.format(', '.join([key for key,value in empty_req_fields.items() if value]))
+                                        )
+                    return
+
                 self.records[int(self.selected)]=record
                 self.mdt.save_entry(self.records,self.mode)
+                
                 self.mv.reset()
                 self.top1.destroy()
                 self.update()
@@ -909,10 +1005,12 @@ class MyApplication(tk.Tk):
                 elif record['Alarme'] in ['','None',None] and self.alarme==False:
                     self.viewall.item(self.selected, text='', values=values)
 
-            self.records=self.mdt.load_records()
+            #à condiérer : on enlève? ca fait redondant
+            #self.records=self.mdt.load_records()
+                
             messagebox.showinfo(
-                title="Information",
-                message="Sauvegarde réussie")
+                    title="Information",
+                    message="Sauvegarde réussie")
                 
         
         #todo : insert messagebox "saved"
@@ -996,14 +1094,13 @@ class MyApplication(tk.Tk):
             #destecting if any field has been modified when creation mode
             #todo :  make it work only when called from exit button, not save button
             #todo : make it for each toplevel except calendar
-            tests=[dt.datetime.strptime(values['Date'], "%d/%m/%Y").date() != dt.date.today(),
-                    values['Note']!='\n',
+            tests=[values['Note']!='\n',
                     1 in values['Les gens concernés'].values(),
                     1 in values['Sociétés/Personnel'].values(),
                     ]
             if not save:
                 if any(tests):
-                    fields=['Date', 'Note', 'Les gens concernés','Sociétés/Personnel']
+                    fields=['Note', 'Les gens concernés','Sociétés/Personnel']
                     dd=dict(zip(fields,tests))
                     x=[field for field,value in dd.items() if value==True]
                     quitting=messagebox.askyesno(title="Quitting",
