@@ -10,8 +10,9 @@ import csv, os, json
 #todo : update function for update treeview (destroypopulate)
 #todo : add checkbox filter by gens concerné et csociete - complex filter
 #todo : add linebreak when checkbox options doesnt fit in one line
-#todo: gestion des alarmes : ceux en cours, sceux passé, ceux terminés, récurrence,...
+#todo : gestion des alarmes : ceux en cours, sceux passé, ceux terminés, récurrence,...
 #todo : think about adding a deleteentry option
+#todo : delete multiple selection
 
 ##BASE##
 class MyData:
@@ -891,6 +892,7 @@ class MyApplication(tk.Tk):
         self.focus_set()
 
     def onclick_viewall(self,e):
+        print(self.viewall.selection())
         item = self.viewall.identify_row(e.y)
         if item in self.viewall.selection():
             self.viewall.selection_remove(item)
@@ -1044,6 +1046,10 @@ class MyApplication(tk.Tk):
                     self.viewall.item(self.selected, text='', values=values)
                 elif record['Alarme'] in ['','None',None] and self.alarme==False:
                     self.viewall.item(self.selected, text='', values=values)
+                    
+            else:
+               self.mdt.save_entry(self.records,self.mode)
+
 
             #à condiérer : on enlève? ca fait redondant
             #self.records=self.mdt.load_records()
@@ -1059,15 +1065,17 @@ class MyApplication(tk.Tk):
                                     parent=self)
         if quitting :
             current = self.viewall.focus()
-            self.viewall.delete(current)
             values = self.viewall.set(current)
             ref=values["Ref"]
-            for row,values in enumerate(self.records):
-                if values['Ref']==ref:
+            for row,record in enumerate(self.records):
+                if record['Ref']==ref:
                     self.records.pop(row)
-                    self.mode="modification"
+                    self.mode="delete"
                     self.save_entry()
-                break
+                    #self.records=self.mdt.load_records()
+                    break
+            self.viewall.delete(current)
+
 
                 
     def load_records(self):
