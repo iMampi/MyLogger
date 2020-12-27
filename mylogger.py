@@ -1,32 +1,30 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, simpledialog
 import datetime as dt
 from tkcalendar import *
 import csv, os, json
 
-
+#todo : when conulting a log, when i press exit, it ask confirmaiton whereas i changed nothing.
 #todo : add "select all" for chackbox label
-#todo : les champs obligatoires lors de sauvegarde
 #todo : compare the memory usage of the two approach for updating treeview . destroy populate vs update just 1 entry
 #todo : update function for update treeview (destroypopulate)
-#todo : add widith column in MyData for each field for column width in treeview
-#todo : add checkbox filter by gens concerné et csociete
+#todo : add checkbox filter by gens concerné et csociete - complex filter
 #todo : add linebreak when checkbox options doesnt fit in one line
 #todo: gestion des alarmes : ceux en cours, sceux passé, ceux terminés, récurrence,...
 #todo : think about adding a deleteentry option
-#todo : make it so "ref" always stays 'disabled' whatever the mode
 
 ##BASE##
 class MyData:
-    
+    filename="database_mylogger.csv"
+    list_file="list_file.json"
+    list_societe=[]
+    list_status=['Note', 'En cours', 'Terminé']
+    list_name=[]
+
     def __init__ (self):
-        self.filename="database_mylogger.csv"
-        self.list_file="list_file.json"
-        self.list_name=[]
-        self.list_societe=[]
-        self.list_status=['Note', 'En cours', 'Terminé']
         self.load_lists()
-        
+        self.new_file()
+
 
         self.fields={"Ref":{"type":'Entry',
                        "creation":{"visible":True,"state":"normal"},
@@ -107,7 +105,6 @@ class MyData:
                                      },
                             "Status":self.fields["Status"]
                             }
-        self.new_file()
         
     def new_file(self):
         """check if database exist"""
@@ -134,20 +131,6 @@ class MyData:
         
         if mode =="creation":
             #here data is a dict
-            #todo : remove ll those verification to put it in our application part
-            if 'Status' not in data.keys() or data['Status'] in [None, '']:
-                if data['Alarme'] in [None,'','None']:
-                    data['Status']='Note'
-                else:
-                    data['Status']='None'
-                    
-            for field,value in data.items():
-                if value in ['','\n']:
-                    data[field]='None'
-
-            
-                
-
             
             with open(self.filename, 'a',newline='',encoding='utf-8') as fh:
                 csvwriter = csv.DictWriter(fh,
@@ -167,25 +150,6 @@ class MyData:
                         row[field]='None'
                     if field == 'Status' and value not in self.list_status:
                         value='Note'
-
-##                empty_req_fields={}
-##                for key,value in row.items():
-##                    empty_req_fields[key]=False
-##                    if self.fields[key]['req']:
-##                        if type(value)==dict:
-##                            if 1 not in value.values():
-##                                empty_req_fields[key]=True
-##                        else:
-##                            if value in [None, '', '\n','None']:
-##                                empty_req_fields[key]=True
-##                print(empty_req_fields)
-##                if any(empty_req_fields.values()):
-##                    messagebox.showinfo(title='Warning',
-##                                        message='Ces champs ne peuvent être vides:',
-##                                        detail='{}'.format(', '.join([key for key,value in empty_req_fields.items() if value]))
-##                                        )
-##                    return False
-
 
             with open(self.filename, 'w',newline='',encoding='utf-8') as fh:
                 csvwriter = csv.DictWriter(fh,
@@ -292,14 +256,37 @@ what you can do to read it multiple time is :
             self.list_societe=ml.get("list_societe")
             self.list_societe.sort()
         else:
-            #todo : message box about creating a database
+            messagebox.showinfo(title='Information',
+                                message='No list database found :',
+                                detail='New list database created',
+                                )
             self.new_file()
             self.load_lists()
            
 
 ##WIDGETS##
-class MyComboboxEntry(ttk.Combobox):
-    pass
+class MyCombobox(ttk.Combobox):
+    def __init__(self,parent,*args,textvariable=None,values=None,**kwargs):
+        super().__init__(parent,*args,textvariable=textvariable,values=values,**kwargs)
+        self.var = textvariable
+        self.values=[*values,'Tout']
+        #self.var.trace('w',self.filter)
+        #self.bind("<<ComboboxSelected>>", self.event_generate('<Button-1>'))
+
+        
+
+##    def filter(self,*args):
+##        myinput=self.var.get().lower()
+##        init_values=self.values
+##        selection=[]
+##        for element in self.values:
+##            if element.lower().startswith(myinput):
+##                selection.append(element)
+##        if len(selection) == 1 :
+##            self.configure(values=selection)
+##            #self.var.set(*selection)
+##            self.event_generate('<Down>')
+        
 
 class MyDateEntry(tk.Frame):
     
@@ -383,8 +370,10 @@ class MyDateEntry(tk.Frame):
     def _invalidate(self, proposed, current, char, event, index, action):
         print(proposed, current, char, event, index, action)
           
-        messagebox.showinfo(title='Warning',
-                            message='Date non valide')
+        messagebox.showerror(title='Erreur',
+                            message='Date non valide:',
+                             detail='Veuillez saisir ou sélectionner une date valide',
+                             parent=self)
 
         pass
 
@@ -427,7 +416,7 @@ class LabelEntry(tk.Frame):
                                      textvariable=self.var,
                                      **kwargs)
         elif checker[label]['type']=='ComboboxEntry':
-            self.MyEntry=ttk.Combobox(self,
+            self.MyEntry=MyCombobox(self,
                                      textvariable=self.var,
                                      values=checker[label]['list'],
                                      **kwargs)
@@ -554,7 +543,8 @@ class LabelCheckbutton(tk.Frame):
             self.outer_instance.model.save_lists()
             messagebox.showinfo(
                 title="Information",
-                message="Nouvel élément ajouté")
+                message="Nouvel élément ajouté.",
+                parent=self.outer_instance)
 
 
 
@@ -590,10 +580,8 @@ class LabelCheckbutton(tk.Frame):
         self.top.grab_set()
         self.top.columnconfigure(0,weight=1)
 
-        #print(str(self.top))
         self.top.protocol('WM_DELETE_WINDOW', lambda : self.parent.commands['quit_w'](self.top))
-
-
+        
 ##VIEW##
 class ViewAll(ttk.Treeview):
     def __init__(self,parent,model,*args,**kwargs):
@@ -640,7 +628,7 @@ class ViewAll(ttk.Treeview):
         #return a list
         return row_values
 
-    def populate(self,data,alarme=False):
+    def populate(self,data,statu=False):
         """delete rows in treeview"""
         children=self.get_children()
         if len(children) > 0 :
@@ -652,15 +640,18 @@ class ViewAll(ttk.Treeview):
         for row_data in data:
             row_values=self.formating(row_data)
 
-            #row_values = [row_data[header] for header in self.headers ]
+            if statu!='Tout':
 
-            if alarme==True:
-                if row_data['Alarme']!='':
+                #row_values = [row_data[header] for header in self.headers ]
+
+                if row_data['Status']==statu:
                     self.insert('', 'end', iid=counter, values=row_values)
                     counter += 1
-            else:                
+            else:
                 self.insert('', 'end', iid=counter, values=row_values)
-                counter += 1        
+                counter += 1
+
+                
     """
     def populate(self,data,alarme=False):
         #delete rows in treeview
@@ -840,23 +831,39 @@ class MyApplication(tk.Tk):
         
         self.button_new = ttk.Button(fb,text="New log",
                                      command = lambda : self.commands['new_log']("creation"))
-        self.button_all_filter = ttk.Button(fb,text="View All",
-                                            command = self.button_switch)
+        #self.button_all_filter = ttk.Button(fb,text="View All",
+        #                                   command = self.button_switch)
+        self.combo_var_all_filter = tk.StringVar()
+        self.combobox_all_filter = MyCombobox(fb,
+                                textvariable=self.combo_var_all_filter,
+                                values = [*self.mdt.fields['Status']['list'],'Tout'],
+                                **kwargs)
+        self.combobox_all_filter.set("En cours")
+        self.combo_var_all_filter.trace('w',self.combo_filter_tree)
+
+
+        
         self.filter_var=tk.StringVar()
         self.filter = ttk.Entry(fb,textvariable=self.filter_var)
         self.filter_var.trace('w',self.filter_tree)
-        self.complex_filter = ttk.Button(fb,text="More Filter",
+        self.complex_filter = ttk.Button(fb, text="More Filter",
                                          command = self.complex_filter)
+        self.button_delete = ttk.Button(fb, text="Delete", state="disabled",
+                                         command = self.del_log)
+
         
         #todo : catch error if argument is neither creation or consultation
         self.button_new.grid(row=0,column=0,sticky='w',padx=5,pady=5)
-        self.button_all_filter.grid(row=0,column=1,sticky='w',padx=5,pady=5)
-        self.filter.grid(row=0,column=3,sticky='we',padx=5,pady=5)
+        self.button_delete.grid(row=0,column=3,sticky='w',padx=5,pady=5)
+        self.combobox_all_filter.grid(row=0,column=1,sticky='w',padx=5,pady=5)
         self.complex_filter.grid(row=0,column=2,sticky='w',padx=5,pady=5)
-        
+
+        #self.button_all_filter.grid(row=0,column=1,sticky='w',padx=5,pady=5)
+        self.filter.grid(row=0,column=3,sticky='we',padx=5,pady=5)
+
         self.geometry("800x200")
         self.minsize(width=250, height=200)
-        self.title('Historique - Avec Alarme Uniquement')
+        self.title('Historique')
         self.maxsize(width=1500, height=500)
         self.columnconfigure(0,weight=1)
         self.rowconfigure(0,weight=0)
@@ -872,31 +879,46 @@ class MyApplication(tk.Tk):
         self.viewall.columnconfigure(0,weight=1)
         self.viewall.rowconfigure(0,weight=1)
 
-        self.viewall.populate(self.records,alarme=True)
+        self.viewall.populate(self.records,statu='En cours')
         
         self.update_idletasks()
-        
-        self.viewall.bind('<<TreeviewOpen>>', self.doubleclick_viewall)
 
-    def complex_filter(self):
+        self.viewall.bind('<1>', self.onclick_viewall)
+
+        self.viewall.bind('<Double-1>', self.doubleclick_viewall)
+        
+
+        self.focus_set()
+
+    def onclick_viewall(self,e):
+        item = self.viewall.identify_row(e.y)
+        if item in self.viewall.selection():
+            self.viewall.selection_remove(item)
+            self.selected=None
+            self.button_delete.configure(state="disabled")
+            """if your binding returns the string 'break', it will stop event propagation and thus prevent the default
+            behaviour for double clicking. You wont be able to use the event '<<TreeviewOpen>>', so you will have to 
+            use the event '<Double-1 instead>'"""
+            return "break"
+        else:
+            self.selected=item
+            self.button_delete.configure(state="normal")
+
+
+    def complex_filter(self,*args):
         top3 = tk.Toplevel()
         top3.columnconfigure(0,weight=1)
 
         complex_wid = ComplexFilter(top3,self.mdt)
         complex_wid.grid(row=0,column=0,sticky='nswe')
 
-    def button_switch(self):
+            
+    def combo_filter_tree(self,*args):
         
-        if self.alarme==True:
-            self.alarme=False
-            self.button_all_filter.configure(text="View Alarm Only")
-            self.title('Historique - Tout')
-            self.viewall.populate(self.records,alarme=self.alarme)
-        else:
-            self.alarme=True
-            self.title('Historique - Avec Alarme Uniquement')
-            self.button_all_filter.configure(text="View All")
-            self.viewall.populate(self.records,alarme=True)
+        statu=self.combo_var_all_filter.get()
+        if statu in [*self.mdt.list_status,'Tout']:
+            #print('ok, statu in list')
+            self.viewall.populate(self.records,statu=statu)
 
 
     def filter_tree(self,*args):
@@ -906,7 +928,7 @@ class MyApplication(tk.Tk):
         for iid in init_iids:
             self.viewall.delete(iid)
 
-        self.viewall.populate(self.records,alarme=self.alarme)
+        self.viewall.populate(self.records,statu=self.combo_var_all_filter.get())
         characters = self.filter.get().lower()
         if characters=='':
             return
@@ -924,10 +946,21 @@ class MyApplication(tk.Tk):
         
 
     def save_entry(self):
-            
+            #to do : to refactor, make it cleaner
             if self.mode=="creation":
                 record=self.mv.get()
                 values = [record[header] for header in self.mdt.fields.keys() if self.mdt.fields[header][self.mode]['visible']]
+
+                if 'Status' not in record.keys() or record['Status'] in [None, '']:
+                    if record['Alarme'] in [None,'','None']:
+                        record['Status']='Note'
+                    else:
+                        record['Status']='En cours'
+                    
+                for field,value in record.items():
+                    if value in ['','\n']:
+                        record[field]='None'
+
 
                 #check if there is empty field in the modified record
                 empty_req_fields={}
@@ -946,29 +979,31 @@ class MyApplication(tk.Tk):
                             if value in [None, '', '\n','None']:
                                 empty_req_fields[key]=True
                 if any(empty_req_fields.values()):
-                    messagebox.showinfo(title='Warning',
+                    messagebox.showerror(title='Erreur',
                                         message='Ces champs ne peuvent être vides ou leurs données sont non-valides :',
-                                        detail='{}'.format(', '.join([key for key,value in empty_req_fields.items() if value]))
+                                        detail='{}'.format(', '.join([key for key,value in empty_req_fields.items() if value])),
+                                        parent=self.mv
                                         )
                     return
 
 
                 self.mdt.save_entry(record,self.mode)
-                if saved:
-                    self.mv.reset()
-                    self.top1.destroy()
-                    self.update()
+                
+                self.mv.reset()
+                self.top1.destroy()
+                self.update()
                     
-                    values=self.viewall.formating(record)
+                values=self.viewall.formating(record)
 
-                    #we update viewall with new log     
-                    if record['Alarme'] not in ['','None',None] and self.alarme==True:
-                        self.viewall.insert('', 'end', iid=len(self.records)+1, values=values)
-                    elif record['Alarme'] in ['','None',None] and self.alarme==False:
-                        self.viewall.insert('', 'end', iid=len(self.records)+1, values=values)
+                #we update viewall with new log     
+                if record['Alarme'] not in ['','None',None] and self.alarme==True:
+                    self.viewall.insert('', 'end', iid=len(self.records)+1, values=values)
+                elif record['Alarme'] in ['','None',None] and self.alarme==False:
+                    self.viewall.insert('', 'end', iid=len(self.records)+1, values=values)
                 
                         
             elif self.mode=="modification":
+                #todo : when log edited, changing statu, do not insert anymore in treeview
                 record=self.mv.get()
                 values = [record[header] for header in self.mdt.fields.keys() if self.mdt.fields[header][self.mode]['visible']]
 
@@ -984,13 +1019,18 @@ class MyApplication(tk.Tk):
                             if value in [None, '', '\n','None']:
                                 empty_req_fields[key]=True
                 if any(empty_req_fields.values()):
-                    messagebox.showinfo(title='Warning',
+                    messagebox.showerror(title='Error',
                                         message='Ces champs ne peuvent être vides:',
-                                        detail='{}'.format(', '.join([key for key,value in empty_req_fields.items() if value]))
+                                        detail='{}'.format(', '.join([key for key,value in empty_req_fields.items() if value])),
+                                        parent=self.mv
                                         )
                     return
 
-                self.records[int(self.selected)]=record
+                ref=record['Ref']
+                for num,log in enumerate(self.records):
+                    if log['Ref']==ref:
+                        self.records[num]=record
+                
                 self.mdt.save_entry(self.records,self.mode)
                 
                 self.mv.reset()
@@ -1010,11 +1050,26 @@ class MyApplication(tk.Tk):
                 
             messagebox.showinfo(
                     title="Information",
-                    message="Sauvegarde réussie")
+                    message="Sauvegarde réussie.")
+            
+    def del_log(self):
+        quitting=messagebox.askyesno(title="Suppression",
+                                     message="Confirmation :",
+                                    detail="Etes-vous sûr de vouloir supprimer cette entrée?",
+                                    parent=self)
+        if quitting :
+            current = self.viewall.focus()
+            self.viewall.delete(current)
+            values = self.viewall.set(current)
+            ref=values["Ref"]
+            for row,values in enumerate(self.records):
+                if values['Ref']==ref:
+                    self.records.pop(row)
+                    self.mode="modification"
+                    self.save_entry()
+                break
+
                 
-        
-        #todo : insert messagebox "saved"
-        
     def load_records(self):
         pass
     
@@ -1091,9 +1146,7 @@ class MyApplication(tk.Tk):
         top1=self.nametowidget('.top1')
         if w==top1:
             values=self.mv.get()
-            #destecting if any field has been modified when creation mode
-            #todo :  make it work only when called from exit button, not save button
-            #todo : make it for each toplevel except calendar
+            #detecting if any field has been modified when creation mode
             tests=[values['Note']!='\n',
                     1 in values['Les gens concernés'].values(),
                     1 in values['Sociétés/Personnel'].values(),
@@ -1105,7 +1158,8 @@ class MyApplication(tk.Tk):
                     x=[field for field,value in dd.items() if value==True]
                     quitting=messagebox.askyesno(title="Quitting",
                                                      message="Des champs ont été modifié : {}.".format(', '.join(x)),
-                                                     detail="Etes-vous sûr de vouloir abandonner l'enregistrement en cours?")
+                                                     detail="Etes-vous sûr de vouloir abandonner l'enregistrement en cours?",
+                                                     parent=w)
                     if not quitting:
                         return
                     else:
@@ -1121,7 +1175,8 @@ class MyApplication(tk.Tk):
                     if new_element!='':
                         quitting=messagebox.askyesno(title="Quitting",
                                                      message="Le champ n'est pas vide.",
-                                                     detail="Etes-vous sûr de vouloir abandonner l'enregistrement en cours?")
+                                                     detail="Etes-vous sûr de vouloir abandonner l'enregistrement en cours?",
+                                                     parent=w)
                         if not quitting:
                             return
                         else:
@@ -1139,7 +1194,8 @@ class MyApplication(tk.Tk):
                     if new_element!='':
                         quitting=messagebox.askyesno(title="Quitting",
                                                      message="Le champ n'est pas vide.",
-                                                     detail="Etes-vous sûr de vouloir abandonner l'enregistrement en cours?")
+                                                     detail="Etes-vous sûr de vouloir abandonner l'enregistrement en cours?",
+                                                     parent=w)
                         if not quitting:
                             return
                         else:
