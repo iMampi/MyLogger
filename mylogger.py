@@ -4,15 +4,88 @@ import datetime as dt
 from tkcalendar import *
 import csv, os, json
 
-#todo : when conulting a log, when i press exit, it ask confirmaiton whereas i changed nothing.
+#done : no confirmation when quitting while cosulting
+#done : no confirming when modificaiton, and no change was made
+#done : converting chckbox data into dict imediatly when loaded
+#done : now text.get return no linebreak anymore
+#done : dateentry dealing error differently if req or not 
+#done : in dict for "les gens concernés" and "société", it saves only the keys existing when it was saved,
+#   not all the existing keys. so when comparing, it will always not be right
+#   >>> fix the dicts : only save the keys where the value is 1
+#done : fix empty date to return today's date
+#done : update self records everytime a new entryis added or modified
+#done : saving new log, adding it to treeview
+#done : when editing a log, when i press exit, it ask confirmaiton whereas i changed nothing.
+#done : deleting multiple lines and solo line
+####commit did a lot 001####
+
 #todo : add "select all" for chackbox label
 #todo : compare the memory usage of the two approach for updating treeview . destroy populate vs update just 1 entry
 #todo : update function for update treeview (destroypopulate)
 #todo : add checkbox filter by gens concerné et csociete - complex filter
 #todo : add linebreak when checkbox options doesnt fit in one line
 #todo : gestion des alarmes : ceux en cours, sceux passé, ceux terminés, récurrence,...
-#todo : think about adding a deleteentry option
-#todo : delete multiple selection
+
+FIELDS={"Ref":{"type":'Entry',
+               "creation":{"visible":True,"state":"normal"},
+                "modification":{"visible":True,"state":"normal"},
+               "consultation":{"visible":True,"state":"readonly"},
+                "width":50,
+                "req":True
+                   },
+        "Date":{"type":'DateEntry',
+               "creation":{"visible":True,"state":"normal"},
+                "modification":{"visible":True,"state":"normal"},
+               "consultation":{"visible":True,"state":"readonly"},
+                "width":70,
+                "req":True
+
+               },
+        "Note":{"type":'Text',
+               "creation":{"visible":True,"state":"normal"},
+                "modification":{"visible":True,"state":"normal"},
+               "consultation":{"visible":True,"state":"normal"},
+                "width":200,
+               "req":True
+               },
+        "Les gens concernés":{"type":'Checkbox',
+                              "creation":{"visible":True,"state":"normal"},
+                              "modification":{"visible":True,"state":"normal"},
+                              "consultation":{"visible":True,"state":"disabled"},
+                              "list":[],
+                              "command":"add_name",
+                              "width":150,
+                                "req":True
+                              
+                              },
+        "Sociétés/Personnel":{"type":'Checkbox',
+                              "creation":{"visible":True,"state":"normal"},
+                              "modification":{"visible":True,"state":"normal"},
+                              "consultation":{"visible":True,"state":"disabled"},
+                              "list":[],
+                              "command":"add_societe",
+                              "width":150,
+                             "req":True
+
+                             },
+        "Alarme":{"type":'DateEntry',
+               "creation":{"visible":True,"state":"disabled"},
+                "modification":{"visible":True,"state":"normal"},
+               "consultation":{"visible":True,"state":"disabled"},
+               "width":70,
+                  "req":False
+                 },
+        "Status":{"type":'ComboboxEntry',
+               "creation":{"visible":False,"state":"normal"},
+                "modification":{"visible":True,"state":"normal"},
+               "consultation":{"visible":True,"state":"disabled"},
+                  "list":[],
+               "width":70,
+                  "req":True
+
+                 }
+            }
+
 
 ##BASE##
 class MyData:
@@ -27,65 +100,16 @@ class MyData:
         self.new_file()
 
 
-        self.fields={"Ref":{"type":'Entry',
-                       "creation":{"visible":True,"state":"normal"},
-                        "modification":{"visible":True,"state":"normal"},
-                       "consultation":{"visible":True,"state":"readonly"},
-                        "width":50,
-                            "req":True
-                           },
-                "Date":{"type":'DateEntry',
-                       "creation":{"visible":True,"state":"normal"},
-                        "modification":{"visible":True,"state":"normal"},
-                       "consultation":{"visible":True,"state":"readonly"},
-                        "width":70,
-                        "req":True
+        self.fields=FIELDS
+        for name in self.list_name:
+            self.fields["Les gens concernés"]['list'].append(name)
+        for societe in self.list_societe:
+            self.fields["Sociétés/Personnel"]['list'].append(societe)
+        for statu in self.list_status:
+            self.fields["Status"]['list'].append(statu)
 
-                       },
-                "Note":{"type":'Text',
-                       "creation":{"visible":True,"state":"normal"},
-                        "modification":{"visible":True,"state":"normal"},
-                       "consultation":{"visible":True,"state":"normal"},
-                        "width":200,
-                       "req":True
-                       },
-                "Les gens concernés":{"type":'Checkbox',
-                                      "creation":{"visible":True,"state":"normal"},
-                                      "modification":{"visible":True,"state":"normal"},
-                                      "consultation":{"visible":True,"state":"disabled"},
-                                      "list":self.list_name,
-                                      "command":"add_name",
-                                      "width":150,
-                                        "req":True
-                                      
-                                      },
-                "Sociétés/Personnel":{"type":'Checkbox',
-                                      "creation":{"visible":True,"state":"normal"},
-                                      "modification":{"visible":True,"state":"normal"},
-                                      "consultation":{"visible":True,"state":"disabled"},
-                                      "list":self.list_societe,
-                                      "command":"add_societe",
-                                      "width":150,
-                                     "req":True
 
-                                     },
-                "Alarme":{"type":'DateEntry',
-                       "creation":{"visible":True,"state":"disabled"},
-                        "modification":{"visible":True,"state":"normal"},
-                       "consultation":{"visible":True,"state":"disabled"},
-                       "width":70,
-                          "req":False
-                         },
-                "Status":{"type":'ComboboxEntry',
-                       "creation":{"visible":False,"state":"normal"},
-                        "modification":{"visible":True,"state":"normal"},
-                       "consultation":{"visible":True,"state":"disabled"},
-                          "list":self.list_status,
-                       "width":70,
-                          "req":True
-
-                         }
-                    }
+        
         
         self.filter_fields={"Date début":{"type":'DateEntry',
                                       "creation":{"visible":True,"state":"normal"},
@@ -209,7 +233,7 @@ what you can do to read it multiple time is :
             self.load_records()
         """
     def load_records(self):
-        #todo : catch error when file is empty or missing a field
+        #todo : catch error when file is empty
         existfile = os.path.exists(self.filename)
         if not existfile:
             self.newfile()
@@ -228,8 +252,6 @@ what you can do to read it multiple time is :
                     
                     "File is missing fields: {}".format(', '.join(missing_fields))
                     )
-                                
-
             else:
                 data =list(csvreader)
                 """converting some data into python data"""
@@ -237,6 +259,13 @@ what you can do to read it multiple time is :
                     for field,value in row.items():
                         if value=='None':
                             row[field]=''
+
+            #we directly convert our string loaded from save that should be a dict into a dict 
+            chck_fields=[x for x in self.fields if self.fields[x]['type']=='Checkbox']
+            for row in data:
+                for field in chck_fields:
+                    converted=eval(row[field])
+                    row[field]=converted
             return data
             
 
@@ -315,7 +344,7 @@ class MyDateEntry(tk.Frame):
     def top_cal(self):
         
         self.top=tk.Toplevel(self,name='top3')
-        #must add focus first, otherwise the grab won't work on first click, but on second click
+        """must add focus first, otherwise the grab won't work on first click, but on second click"""
         self.top.focus_set()
         self.top.grab_set()
 
@@ -344,16 +373,28 @@ class MyDateEntry(tk.Frame):
             self.parent.parent.commands['quit_w'](self.top,save=True)
 
     def _validate(self, proposed, current, char, event, index, action):
-        valid=False
-        
+        if FIELDS[self.parent.label]['req']:
+            v=self.validate_req(proposed, current, char, event, index, action)
+        else:
+            v=self.validate_noreq(proposed, current, char, event, index, action)
+
+        return v
+
+    def validate_req(self, proposed, current, char, event, index, action):
+        valid=True
         if event == 'focusout':
             if not self.entry.get():
-                valid = False
-            try:
-                dt.datetime.strptime(self.entry.get(),"%d/%m/%Y")
-                valid=True
-            except ValueError:
-                valid=False
+                td=dt.date.today()
+                self.entry_var.set(td.strftime("%d/%m/%Y"))
+
+            else:
+                print('else')
+                print(not self.entry.get())
+                try:
+                    dt.datetime.strptime(self.entry.get(),"%d/%m/%Y")
+                    valid=True
+                except ValueError:
+                    valid=False
         elif event =='key':
             if action =='0':
                 valid = True
@@ -365,18 +406,54 @@ class MyDateEntry(tk.Frame):
                 valid=False
         elif event == 'focusin':
             valid= True
-            
+        return valid
+
+    def validate_noreq(self, proposed, current, char, event, index, action):
+        valid=True
+        if event == 'focusout':
+            if not self.entry.get():
+                pass
+                print('empty')
+            else:
+                print('else')
+                try:
+                    dt.datetime.strptime(self.entry.get(),"%d/%m/%Y")
+                    valid=True
+                except ValueError:
+                    valid=False
+        elif event =='key':
+            if action =='0':
+                valid = True
+            elif index in ('0','1','3','4','6','7','8','9'):
+                valid = char.isdigit()
+            elif index in ('2','5'):
+                valid = char=='/'
+            else:
+                valid=False
+        elif event == 'focusin':
+            valid= True
         return valid
 
     def _invalidate(self, proposed, current, char, event, index, action):
         print(proposed, current, char, event, index, action)
-          
+        if FIELDS[self.parent.label]['req']:
+            inv=self._invalidate_req(proposed, current, char, event, index, action)
+        else:
+            inv=self._invalidate_noreq(proposed, current, char, event, index, action)
+        
         messagebox.showerror(title='Erreur',
                             message='Date non valide:',
                              detail='Veuillez saisir ou sélectionner une date valide',
                              parent=self)
+        return inv
+    
+    def _invalidate_req(self, proposed, current, char, event, index, action):
+        td=dt.date.today()
+        self.entry_var.set(td.strftime("%d/%m/%Y"))
 
-        pass
+    def _invalidate_noreq(self, proposed, current, char, event, index, action):
+        self.entry_var.set('')
+
 
     def get(self):
         return self.entry.get()
@@ -441,7 +518,8 @@ class LabelEntry(tk.Frame):
         if 'Entry' in self.model.fields[self.label]['type'] :
             return self.MyEntry.get()
         else:
-            return self.MyEntry.get('1.0', tk.END)
+            #since in Text, the value will always contains \n in the end, we use rstrip to remove it
+            return self.MyEntry.get('1.0', tk.END).rstrip()
 
     def set(self,newvalue,*args,**kwargs):
         if 'Entry' in self.model.fields[self.label]['type'] :
@@ -513,7 +591,6 @@ class LabelCheckbutton(tk.Frame):
             """create an attribut to store the outer instance, so we can acces it later"""
             self.outer_instance=outer_instance
             self.parent=parent
-            print(self)
             self.MyVar=tk.StringVar()
             lab=tk.Label(self,text="Enter new element :")
             lab.grid(row=0,column=0,sticky='we')
@@ -554,16 +631,19 @@ class LabelCheckbutton(tk.Frame):
         self.columnconfigure(0,weight=1)
 
     def get(self):
-        """return a dict"""
+        """return a dict of only the items where value is 1"""
+        
         data={}
         for name,var in self.dict_var.items():
-            data[name]=var.get()
+            if var.get():
+                data[name]=var.get()
         return data
 
     def set(self,dict_value):
         #todo : add a len checker. checker that all fields are there
         """dict value must be a dict """
         """when loaded from csv, data is all string. we convert it into a dict if needed"""
+        #todo : get rid of the conversion into dict because we already convert it all into a dict when we load all records
         data=dict_value
         if type(dict_value)!=dict:
             data=eval(dict_value)
@@ -610,6 +690,8 @@ class ViewAll(ttk.Treeview):
         row_values=[]
         for header in self.headers:
             #todo : what if ml is empty
+            #todo : get rid of the conversion into dict because we already convert it all into a dict when we load all records
+
             if header in ("Les gens concernés", "Sociétés/Personnel"):
                 ml=[]
                 if type(row_data[header])!=dict:
@@ -626,7 +708,7 @@ class ViewAll(ttk.Treeview):
         for index in range(0,len(row_values)):
             if row_values[index]=='None':
                 row_values[index]=''
-        #return a list
+        """it returns a list"""
         return row_values
 
     def populate(self,data,statu=False):
@@ -642,52 +724,12 @@ class ViewAll(ttk.Treeview):
             row_values=self.formating(row_data)
 
             if statu!='Tout':
-
-                #row_values = [row_data[header] for header in self.headers ]
-
                 if row_data['Status']==statu:
                     self.insert('', 'end', iid=counter, values=row_values)
                     counter += 1
             else:
                 self.insert('', 'end', iid=counter, values=row_values)
                 counter += 1
-
-                
-    """
-    def populate(self,data,alarme=False):
-        #delete rows in treeview
-        children=self.get_children()
-        if len(children) > 0 :
-            for child in children:
-                self.delete(child)
-                
-        counter=0
-        #formating data from dict to str for treeview
-        for row_data in data:
-            row_values=[]
-            for header in self.headers:
-                #todo : what if ml is empty
-                if header in ("Les gens concernés", "Sociétés/Personnel"):
-                    ml=[]
-                    for key,value in eval(row_data[header]).items():
-                        if value==1:
-                            ml.append(key)
-                    ml=", ".join(ml)
-                    row_values.append(ml)
-                else:
-                    row_values.append(row_data[header])
-
-            #row_values = [row_data[header] for header in self.headers ]
-
-            if alarme==True:
-                if row_data['Alarme']!='':
-                    self.insert('', 'end', iid=counter, values=row_values)
-                    counter += 1
-            else:                
-                self.insert('', 'end', iid=counter, values=row_values)
-                counter += 1
-    """
-        
 
 class MyView(tk.Frame):
     def __init__(self,parent,data,mode,commands):
@@ -722,8 +764,6 @@ class MyView(tk.Frame):
 
         self.Fields['Note'].MyEntry.focus_set()
         
-
-
     def get(self):
         data={}
         for field,widget in self.Fields.items():
@@ -800,13 +840,7 @@ class ComplexFilter(tk.Frame):
         self.widgets["date01"].grid(row=counter+1,column=0,sticky='w')
         self.widgets["date02"]=LabelEntry(self,"Date fin",self.model,**kwargs)
         self.widgets["date02"].grid(row=counter+1,column=1,sticky='w')
-
-            
-            
         pass
-
-
-
 
 ##CONTROLER##
 class MyApplication(tk.Tk):
@@ -842,8 +876,6 @@ class MyApplication(tk.Tk):
         self.combobox_all_filter.set("En cours")
         self.combo_var_all_filter.trace('w',self.combo_filter_tree)
 
-
-        
         self.filter_var=tk.StringVar()
         self.filter = ttk.Entry(fb,textvariable=self.filter_var)
         self.filter_var.trace('w',self.filter_tree)
@@ -852,7 +884,6 @@ class MyApplication(tk.Tk):
         self.button_delete = ttk.Button(fb, text="Delete", state="disabled",
                                          command = self.del_log)
 
-        
         #todo : catch error if argument is neither creation or consultation
         self.button_new.grid(row=0,column=0,sticky='w',padx=5,pady=5)
         self.button_delete.grid(row=0,column=3,sticky='w',padx=5,pady=5)
@@ -892,7 +923,7 @@ class MyApplication(tk.Tk):
         self.focus_set()
 
     def onclick_viewall(self,e):
-        print(self.viewall.selection())
+        #print(self.viewall.selection())
         item = self.viewall.identify_row(e.y)
         if item in self.viewall.selection():
             self.viewall.selection_remove(item)
@@ -921,6 +952,10 @@ class MyApplication(tk.Tk):
         if statu in [*self.mdt.list_status,'Tout']:
             #print('ok, statu in list')
             self.viewall.populate(self.records,statu=statu)
+            if statu in ['Note','Tout','Terminé']:
+                self.alarme=False
+            else:
+                self.alarme=True
 
 
     def filter_tree(self,*args):
@@ -945,8 +980,6 @@ class MyApplication(tk.Tk):
                 if all(test):
                         self.viewall.delete(myiid)
 
-        
-
     def save_entry(self):
             #to do : to refactor, make it cleaner
             if self.mode=="creation":
@@ -962,7 +995,6 @@ class MyApplication(tk.Tk):
                 for field,value in record.items():
                     if value in ['','\n']:
                         record[field]='None'
-
 
                 #check if there is empty field in the modified record
                 empty_req_fields={}
@@ -988,7 +1020,6 @@ class MyApplication(tk.Tk):
                                         )
                     return
 
-
                 self.mdt.save_entry(record,self.mode)
                 
                 self.mv.reset()
@@ -997,14 +1028,14 @@ class MyApplication(tk.Tk):
                     
                 values=self.viewall.formating(record)
 
-                #we update viewall with new log     
+                #we update viewall with new log
+                print(self.alarme)
                 if record['Alarme'] not in ['','None',None] and self.alarme==True:
-                    self.viewall.insert('', 'end', iid=len(self.records)+1, values=values)
+                    self.viewall.insert('', 'end', iid=len(self.viewall.get_children())+1, values=values)
                 elif record['Alarme'] in ['','None',None] and self.alarme==False:
-                    self.viewall.insert('', 'end', iid=len(self.records)+1, values=values)
+                    self.viewall.insert('', 'end', iid=len(self.viewall.get_children())+1, values=values)
                 
-                        
-            elif self.mode=="modification":
+           elif self.mode=="modification":
                 #todo : when log edited, changing statu, do not insert anymore in treeview
                 record=self.mv.get()
                 values = [record[header] for header in self.mdt.fields.keys() if self.mdt.fields[header][self.mode]['visible']]
@@ -1050,33 +1081,53 @@ class MyApplication(tk.Tk):
             else:
                self.mdt.save_entry(self.records,self.mode)
 
+            self.records=self.mdt.load_records()
+            if self.mode in ('modification','cr eation'):   
+                messagebox.showinfo(
+                        title="Information",
+                        message="Sauvegarde réussie.")
+            else:
+                messagebox.showinfo(
+                        title="Information",
+                        message="Ligne(s) effacée(s) avec succès.")
 
-            #à condiérer : on enlève? ca fait redondant
-            #self.records=self.mdt.load_records()
-                
-            messagebox.showinfo(
-                    title="Information",
-                    message="Sauvegarde réussie.")
-            
     def del_log(self):
-        quitting=messagebox.askyesno(title="Suppression",
-                                     message="Confirmation :",
-                                    detail="Etes-vous sûr de vouloir supprimer cette entrée?",
+        selections=self.viewall.selection()
+        print (selections)
+        print (len(selections))
+        refs=[]
+        for row in selections :
+            values=self.viewall.set(row)
+            refs.append(values['Ref'])
+        if refs[-1]=='':
+            refs.pop[-1]
+        txt=', '.join(refs)
+
+        if len(selections)>1:
+            deleting=messagebox.askyesno(title="Suppression",
+                             message="Etes-vous sûr de vouloir supprimer ces lignes?",
+                            detail=f"{txt}",
+                            parent=self)
+        else:
+            deleting=messagebox.askyesno(title="Suppression",
+                                     message="Etes-vous sûr de vouloir supprimer cette ligne?",
+                                    detail=f"{txt}",
                                     parent=self)
-        if quitting :
-            current = self.viewall.focus()
-            values = self.viewall.set(current)
-            ref=values["Ref"]
-            for row,record in enumerate(self.records):
-                if record['Ref']==ref:
-                    self.records.pop(row)
-                    self.mode="delete"
-                    self.save_entry()
-                    #self.records=self.mdt.load_records()
-                    break
-            self.viewall.delete(current)
 
+        if deleting :
+            for selection in selections:
+                values = self.viewall.set(selection)
+                ref=values["Ref"]
+                for row,record in enumerate(self.records):
+                    if record['Ref']==ref:
+                        self.records.pop(row)
+                        #self.records=self.mdt.load_records()
+                        break
+            
+                self.viewall.delete(selection)
 
+            self.mode="delete"
+            self.save_entry()
                 
     def load_records(self):
         pass
@@ -1087,7 +1138,7 @@ class MyApplication(tk.Tk):
         self.mv=MyView(self.top1,self.mdt,self.mode,self.commands)
 
         #print(self.top1)
-        print(self.mv)
+        #print(self.mv)
         
         self.top1.protocol('WM_DELETE_WINDOW', lambda : self.quit_w(self.nametowidget('top1')))
 
@@ -1150,79 +1201,106 @@ class MyApplication(tk.Tk):
         print(self.mv.Fields["Les gens concernés"].chckbt_labels)
 
     def quit_w(self,w,save=False):
-        ##########
-        top1=self.nametowidget('.top1')
-        if w==top1:
-            values=self.mv.get()
-            #detecting if any field has been modified when creation mode
-            tests=[values['Note']!='\n',
-                    1 in values['Les gens concernés'].values(),
-                    1 in values['Sociétés/Personnel'].values(),
-                    ]
-            if not save:
-                if any(tests):
-                    fields=['Note', 'Les gens concernés','Sociétés/Personnel']
-                    dd=dict(zip(fields,tests))
-                    x=[field for field,value in dd.items() if value==True]
-                    quitting=messagebox.askyesno(title="Quitting",
-                                                     message="Des champs ont été modifié : {}.".format(', '.join(x)),
-                                                     detail="Etes-vous sûr de vouloir abandonner l'enregistrement en cours?",
-                                                     parent=w)
-                    if not quitting:
-                        return
-                    else:
-                        pass
-                    
-            self.grab_set()
-        try :
-            """widgetadd for checkbuttons first line"""
-            top2=self.nametowidget('.top1.!myview.!labelcheckbutton.top2')
-            if w==top2:
-                new_element=self.nametowidget('.top1.!myview.!labelcheckbutton.top2.!widgetadd').get()
+        #todo : w.destroy only once in this code
+        if self.mode in ("modification","creation"):
+            ##########
+            top1=self.nametowidget('.top1')
+            if w==top1:
+                data=self.mv.get()
+                tests=[]
+                #detecting if any field is not empty when creation mode
+                if self.mode=="creation":
+                    for key,value in data.items():
+                        #todo : if date is diffenrete from today
+                        #todo : if alarm is different from empty
+                        if key == 'Note':
+                            tests.append(data['Note']!='')
+                        elif key == 'Les gens concernés':
+                            tests.append(len(data['Les gens concernés'])>0)
+                        elif key == 'Sociétés/Personnel':
+                            tests.append(len(data['Sociétés/Personnel'])>0)
+                        else:
+                            tests.append(False)
+                        
+                elif self.mode=="modification":
+                    for record in self.records:
+                        if record['Ref']==data['Ref']:
+                            print('data')
+                            print (data)
+                            print ('record')
+                            print (record)
+                            
+                            for key,value in data.items():
+                                tests.append(data[key]!=record[key])
+                print(self.mode)
+                print(tests)                    
                 if not save:
-                    if new_element!='':
+                    if any(tests):
+                        fields=self.mdt.fields.keys()
+                        dd=dict(zip(fields,tests))
+                        x=[field for field,value in dd.items() if value==True]
                         quitting=messagebox.askyesno(title="Quitting",
-                                                     message="Le champ n'est pas vide.",
-                                                     detail="Etes-vous sûr de vouloir abandonner l'enregistrement en cours?",
-                                                     parent=w)
+                                                         message="Des champs ont été modifié : {}.".format(', '.join(x)),
+                                                         detail="Etes-vous sûr de vouloir abandonner l'enregistrement en cours?",
+                                                         parent=w)
                         if not quitting:
                             return
                         else:
                             pass
-                top1.grab_set()
-        except:
-            print('top2 missing')
+                        
+                self.grab_set()
+            try :
+                """widgetadd for checkbuttons first line"""
+                top2=self.nametowidget('.top1.!myview.!labelcheckbutton.top2')
+                if w==top2:
+                    new_element=self.nametowidget('.top1.!myview.!labelcheckbutton.top2.!widgetadd').get()
+                    if not save:
+                        if new_element!='':
+                            quitting=messagebox.askyesno(title="Quitting",
+                                                         message="Le champ n'est pas vide.",
+                                                         detail="Etes-vous sûr de vouloir abandonner l'enregistrement en cours?",
+                                                         parent=w)
+                            if not quitting:
+                                return
+                            else:
+                                pass
+                    top1.grab_set()
+            except:
+                print('top2 missing')
 
-        try:
-            """widgetadd for checkbuttons second line"""
-            top2a=self.nametowidget('.top1.!myview.!labelcheckbutton2.top2')
-            if w==top2a:
-                new_element=self.nametowidget('.top1.!myview.!labelcheckbutton2.top2.!widgetadd').get()
-                if not save:
-                    if new_element!='':
-                        quitting=messagebox.askyesno(title="Quitting",
-                                                     message="Le champ n'est pas vide.",
-                                                     detail="Etes-vous sûr de vouloir abandonner l'enregistrement en cours?",
-                                                     parent=w)
-                        if not quitting:
-                            return
-                        else:
-                            pass
-                                            
-                        print('You entered a new element. Are you sure you wanna leave?')
-                top1.grab_set()
-        except:
-            print('top2a missing')
-            
-        try :
-            """calendar"""
-            top3=self.nametowidget('.top1.!myview.!labelentry2.!mydateentry.top3')
-            if w==top3:
-                top1.grab_set()
-        except:
-            print('top3 missing')
-        finally:
-            w.destroy()
+            try:
+                """widgetadd for checkbuttons second line"""
+                top2a=self.nametowidget('.top1.!myview.!labelcheckbutton2.top2')
+                if w==top2a:
+                    new_element=self.nametowidget('.top1.!myview.!labelcheckbutton2.top2.!widgetadd').get()
+                    if not save:
+                        if new_element!='':
+                            quitting=messagebox.askyesno(title="Quitting",
+                                                         message="Le champ n'est pas vide.",
+                                                         detail="Etes-vous sûr de vouloir abandonner l'enregistrement en cours?",
+                                                         parent=w)
+                            if not quitting:
+                                return
+                            else:
+                                pass
+                                                
+                            print('You entered a new element. Are you sure you wanna leave?')
+                    top1.grab_set()
+            except:
+                print('top2a missing')
+                
+            try :
+                """calendar"""
+                top3=self.nametowidget('.top1.!myview.!labelentry2.!mydateentry.top3')
+                if w==top3:
+                    top1.grab_set()
+            except:
+                print('top3 missing')
+            finally:
+                w.destroy()
+
+        else:
+            w.destroy()    
 
 
 if __name__=='__main__':
