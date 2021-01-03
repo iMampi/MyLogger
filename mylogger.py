@@ -19,6 +19,11 @@ import csv, os, json
 #done : deleting multiple lines and solo line
 ####commit did a lot 001####
 
+#done: displace data treatement with save in App into save in Model
+#done: replacing self.Alarme with self.statu in app.save_entry
+###commit 002###
+
+
 #todo : add "select all" for chackbox label
 #todo : compare the memory usage of the two approach for updating treeview . destroy populate vs update just 1 entry
 #todo : update function for update treeview (destroypopulate)
@@ -156,7 +161,17 @@ class MyData:
         
         if mode =="creation":
             #here data is a dict
-            
+            if 'Status' not in data.keys() or data['Status'] in [None, '']:
+                if data['Alarme'] in (None,'','None'):
+                    data['Status']='Note'
+                else:
+                    data['Status']='En cours'
+                    
+                for field,value in data.items():
+                    if value in (None,'','\n'):
+                        data[field]='None'
+
+
             with open(self.filename, 'a',newline='',encoding='utf-8') as fh:
                 csvwriter = csv.DictWriter(fh,
                                         fieldnames=[x for x in self.fields.keys()],
@@ -167,11 +182,10 @@ class MyData:
         
         else:
             #here data is a list of dict
-            #todo : remove ll those verification to put it in our application part
 
             for row in data:
                 for field,value in row.items():
-                    if value=='' or value==None or value=='\n':
+                    if value in ('',None,'\n'):
                         row[field]='None'
                     if field == 'Status' and value not in self.list_status:
                         value='Note'
@@ -848,6 +862,8 @@ class MyApplication(tk.Tk):
         super().__init__(*args,**kwargs)
         self.mode="consultation"
         self.alarme=True
+        self.statu='En cours'
+        #todo : use self.statu instead of alarme. and remove self.alarme
         self.mdt=MyData()
         self.selected=None
         self.commands={'save_entry' : self.save_entry,
@@ -862,7 +878,8 @@ class MyApplication(tk.Tk):
         fb.columnconfigure(0,weight=0)
         fb.columnconfigure(1,weight=0)
         fb.columnconfigure(2,weight=0)
-        fb.columnconfigure(3,weight=1)
+        fb.columnconfigure(3,weight=0)
+        fb.columnconfigure(4,weight=1)
         
         self.button_new = ttk.Button(fb,text="New log",
                                      command = lambda : self.commands['new_log']("creation"))
@@ -886,15 +903,13 @@ class MyApplication(tk.Tk):
 
         #todo : catch error if argument is neither creation or consultation
         self.button_new.grid(row=0,column=0,sticky='w',padx=5,pady=5)
-        self.button_delete.grid(row=0,column=3,sticky='w',padx=5,pady=5)
-        self.combobox_all_filter.grid(row=0,column=1,sticky='w',padx=5,pady=5)
-        self.complex_filter.grid(row=0,column=2,sticky='w',padx=5,pady=5)
-
-        #self.button_all_filter.grid(row=0,column=1,sticky='w',padx=5,pady=5)
-        self.filter.grid(row=0,column=3,sticky='we',padx=5,pady=5)
+        self.button_delete.grid(row=0,column=1,sticky='w',padx=5,pady=5)
+        self.combobox_all_filter.grid(row=0,column=2,sticky='w',padx=5,pady=5)
+        self.complex_filter.grid(row=0,column=3,sticky='w',padx=5,pady=5)
+        self.filter.grid(row=0,column=4,sticky='we',padx=5,pady=5)
 
         self.geometry("800x200")
-        self.minsize(width=250, height=200)
+        self.minsize(width=600, height=200)
         self.title('Historique')
         self.maxsize(width=1500, height=500)
         self.columnconfigure(0,weight=1)
@@ -923,7 +938,6 @@ class MyApplication(tk.Tk):
         self.focus_set()
 
     def onclick_viewall(self,e):
-        #print(self.viewall.selection())
         item = self.viewall.identify_row(e.y)
         if item in self.viewall.selection():
             self.viewall.selection_remove(item)
@@ -949,10 +963,11 @@ class MyApplication(tk.Tk):
     def combo_filter_tree(self,*args):
         
         statu=self.combo_var_all_filter.get()
-        if statu in [*self.mdt.list_status,'Tout']:
+        if statu in (*self.mdt.list_status,'Tout'):
             #print('ok, statu in list')
-            self.viewall.populate(self.records,statu=statu)
-            if statu in ['Note','Tout','Terminé']:
+            self.statu=statu
+            self.viewall.populate(self.records,statu=self.statu)
+            if statu in ('Note','Tout','Terminé'):
                 self.alarme=False
             else:
                 self.alarme=True
@@ -986,12 +1001,6 @@ class MyApplication(tk.Tk):
                 record=self.mv.get()
                 values = [record[header] for header in self.mdt.fields.keys() if self.mdt.fields[header][self.mode]['visible']]
 
-                if 'Status' not in record.keys() or record['Status'] in [None, '']:
-                    if record['Alarme'] in [None,'','None']:
-                        record['Status']='Note'
-                    else:
-                        record['Status']='En cours'
-                    
                 for field,value in record.items():
                     if value in ['','\n']:
                         record[field]='None'
@@ -1021,22 +1030,22 @@ class MyApplication(tk.Tk):
                     return
 
                 self.mdt.save_entry(record,self.mode)
-                
+
                 self.mv.reset()
                 self.top1.destroy()
-                self.update()
                     
                 values=self.viewall.formating(record)
 
-                #we update viewall with new log
-                print(self.alarme)
-                if record['Alarme'] not in ['','None',None] and self.alarme==True:
-                    self.viewall.insert('', 'end', iid=len(self.viewall.get_children())+1, values=values)
-                elif record['Alarme'] in ['','None',None] and self.alarme==False:
-                    self.viewall.insert('', 'end', iid=len(self.viewall.get_children())+1, values=values)
+                #we update viewall now with an updates log by assigning update_tree the right function
+                #that will be called later
+
+                if self.statu=='Tout' or self.statu==record['Status']:
+                    update_tree=self.viewall.insert('', 'end', iid=len(self.viewall.get_children())+1, values=values)
+                else:
+                    pass
                 
-           elif self.mode=="modification":
-                #todo : when log edited, changing statu, do not insert anymore in treeview
+            elif self.mode=="modification":
+            #todo : when log edited, changing statu, do not insert anymore in treeview
                 record=self.mv.get()
                 values = [record[header] for header in self.mdt.fields.keys() if self.mdt.fields[header][self.mode]['visible']]
 
@@ -1068,21 +1077,28 @@ class MyApplication(tk.Tk):
                 
                 self.mv.reset()
                 self.top1.destroy()
-                self.update()
 
                 values=self.viewall.formating(record)
 
-                #we update viewall now with an updates log        
-                if record['Alarme'] not in ['','None',None] and self.alarme==True:
-                    self.viewall.item(self.selected, text='', values=values)
-                elif record['Alarme'] in ['','None',None] and self.alarme==False:
-                    self.viewall.item(self.selected, text='', values=values)
+                #we update viewall now with an updates log by assigning update_tree the right function
+                #that will be called later
+                
+                if self.statu=='Tout' or self.statu==record['Status']:
+                    update_tree=self.viewall.item(self.selected, text='', values=values)
+                else :
+                    update_tree=self.viewall.delete(self.selected)
                     
             else:
-               self.mdt.save_entry(self.records,self.mode)
-
+                self.mdt.save_entry(self.records,self.mode)
+                
             self.records=self.mdt.load_records()
-            if self.mode in ('modification','cr eation'):   
+
+            try:
+                update_tree
+            except:
+                pass
+
+            if self.mode in ('modification','creation'):   
                 messagebox.showinfo(
                         title="Information",
                         message="Sauvegarde réussie.")
