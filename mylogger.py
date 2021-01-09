@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
 import datetime as dt
 from tkcalendar import *
-import csv, os, json
+import csv, os, json, itertools
 
 #done : no confirmation when quitting while cosulting
 #done : no confirming when modificaiton, and no change was made
@@ -23,6 +23,13 @@ import csv, os, json
 #done: replacing self.Alarme with self.statu in app.save_entry
 ###commit 002###
 
+#done : removed self.Alarmme from code
+#done : in modification, auto change Staus when changing date from something to nothing
+#done : complexfilter - finish the display layout
+#done : complexfilter - command APPLy
+#done : command -  populate according to complex filter selection
+###commit 003###
+
 
 #todo : add "select all" for chackbox label
 #todo : compare the memory usage of the two approach for updating treeview . destroy populate vs update just 1 entry
@@ -30,6 +37,11 @@ import csv, os, json
 #todo : add checkbox filter by gens concerné et csociete - complex filter
 #todo : add linebreak when checkbox options doesnt fit in one line
 #todo : gestion des alarmes : ceux en cours, sceux passé, ceux terminés, récurrence,...
+#todo : when focusing LABELENTRY with date, make it so moving from entry to cal doestnt ccall error
+#todo : when in disabled mode, disable the calendar button too
+#todo : add option filter by word in complexfilter
+#todo : create a widget datefourchette for filter use only (init,get,grid,set,etc...)
+#todo : remove size max of main window
 
 FIELDS={"Ref":{"type":'Entry',
                "creation":{"visible":True,"state":"normal"},
@@ -90,6 +102,14 @@ FIELDS={"Ref":{"type":'Entry',
 
                  }
             }
+def testdate(date):
+    try:
+        dt.datetime.strptime(date,"%d/%m/%Y")
+        value=True
+    except:
+        value=False
+    finally:
+        return value
 
 
 ##BASE##
@@ -317,6 +337,11 @@ class MyCombobox(ttk.Combobox):
         #self.var.trace('w',self.filter)
         #self.bind("<<ComboboxSelected>>", self.event_generate('<Button-1>'))
 
+
+
+ 
+
+
         
 
 ##    def filter(self,*args):
@@ -427,9 +452,9 @@ class MyDateEntry(tk.Frame):
         if event == 'focusout':
             if not self.entry.get():
                 pass
-                print('empty')
+##                print('empty')
             else:
-                print('else')
+##                print('else')
                 try:
                     dt.datetime.strptime(self.entry.get(),"%d/%m/%Y")
                     valid=True
@@ -529,7 +554,9 @@ class LabelEntry(tk.Frame):
         
 
     def get(self):
-        if 'Entry' in self.model.fields[self.label]['type'] :
+        if 'Entry' in self.model.filter_fields[self.label]['type'] :
+            return self.MyEntry.get()
+        elif 'Entry' in self.model.fields[self.label]['type'] :
             return self.MyEntry.get()
         else:
             #since in Text, the value will always contains \n in the end, we use rstrip to remove it
@@ -544,13 +571,14 @@ class LabelEntry(tk.Frame):
         
 class LabelCheckbutton(tk.Frame):
     
-    def __init__(self,parent,label,model,chckbt_labels=None,**kwargs):
+    def __init__(self,parent,label,model,chckbt_labels=None,add_bt=True,**kwargs):
         
         super().__init__(parent,**kwargs)
         self.model=model
         self.label=label
         self.parent=parent
         self.commands=self.parent.commands
+        self.add_bt=add_bt
         
         
         if isinstance(model.fields[self.label]['list'],list):
@@ -568,7 +596,8 @@ class LabelCheckbutton(tk.Frame):
 
         self.dict_var={}
         self.dict_chckbt={}
-        self.button_add=ttk.Button(self.FrameCheck,
+        if self.add_bt:
+            self.button_add=ttk.Button(self.FrameCheck,
                                        text="+",
                                        command=self.add_new,
                                        width=3,
@@ -593,8 +622,9 @@ class LabelCheckbutton(tk.Frame):
                                                            variable=self.dict_var[chckbt_label])
                 self.dict_chckbt[chckbt_label].grid(row=0,column=num)
 
-        self.button_add.grid_forget()
-        self.button_add.grid(row=0,
+        if self.add_bt:
+            self.button_add.grid_forget()
+            self.button_add.grid(row=0,
                             column=len(self.chckbt_labels)+1,
                             ipady=1, ipadx=0
                             )
@@ -777,6 +807,8 @@ class MyView(tk.Frame):
 
 
         self.Fields['Note'].MyEntry.focus_set()
+
+        self.Fields['Alarme'].var.trace('w', lambda a,b,c : self.trace_alarme(a,b,c))
         
     def get(self):
         data={}
@@ -829,12 +861,30 @@ class MyView(tk.Frame):
             self.button_edit.configure(state="disabled")
             self.button_save.configure(state="normal")
 
+    def trace_alarme(self,a,b,c):
+        var=self.Fields['Alarme'].var.get()
+        
+        if self.mode=='modification':
+            value=None
+            if var in ('',None,'None'):
+                value='Note'
+            elif testdate(var):
+                value='En cours'
+            else:
+                value='Note'
+                print('rien')
+            self.Fields['Status'].set(value)
+        else:
+            pass
+
+
 class ComplexFilter(tk.Frame):
-    def __init__(self,parent,model,*args,**kwargs):
+    def __init__(self,parent,model,*args,commands=None,**kwargs):
         #todo : to finish
         super().__init__(parent,*args,**kwargs)
         self.model=model
         labels=[]
+        self.commands=commands
         
         #todo : combine those two succesive block
         for header in self.model.fields:
@@ -846,31 +896,54 @@ class ComplexFilter(tk.Frame):
         counter=0
         for label in labels:
             self.model.fields[label]['list']
-            self.widgets[label] = LabelCheckbutton(self,label,model)
-            self.widgets[label].grid(row=counter,column=0,columnspan=2)
+            if label == 'Status':
+                add_bt = False
+            else:
+                add_bt = True
+            self.widgets[label] = LabelCheckbutton(self,label,self.model,self.commands,add_bt=add_bt)
+            self.widgets[label].grid(row=counter,column=0,columnspan=2,pady=10)
             counter+=1
 
         self.widgets["date01"]=LabelEntry(self,"Date début",self.model,**kwargs)
-        self.widgets["date01"].grid(row=counter+1,column=0,sticky='w')
+        self.widgets["date01"].grid(row=counter+1,column=0,sticky='we')
         self.widgets["date02"]=LabelEntry(self,"Date fin",self.model,**kwargs)
-        self.widgets["date02"].grid(row=counter+1,column=1,sticky='w')
+        self.widgets["date02"].grid(row=counter+1,column=1,sticky='we')
+
+##        sep=ttk.Separator(self,orient="horizontal")
+##        sep.grid(row=counter+2,column=0,sticky='we',columnspan=2, padx=0, pady=(10,0))
+
+        
+        self.button_ok = ttk.Button(self,text="Apply",
+                                    command = self.commands['apply_complex_filter'])
+        self.button_ok.grid(row=counter+2,column=1,sticky='e', pady=(0,0))
+        
         pass
+
+    def get(self):
+        data={}
+        for key,widget in self.widgets.items():
+            value=widget.get()
+            data[key]=value
+        #todo : formatting data. None = all. add "Tout" to Status"
+        print(data)
+        return data
+
+        
 
 ##CONTROLER##
 class MyApplication(tk.Tk):
     def __init__(self,*args,**kwargs):
         super().__init__(*args,**kwargs)
         self.mode="consultation"
-        self.alarme=True
         self.statu='En cours'
-        #todo : use self.statu instead of alarme. and remove self.alarme
         self.mdt=MyData()
         self.selected=None
         self.commands={'save_entry' : self.save_entry,
                        'load_records' : self.load_records,
                        'new_log' : self.new_log,
                        'mode_edit': self.mode_edit,
-                       'quit_w': self.quit_w
+                       'quit_w': self.quit_w,
+                       'apply_complex_filter': self._show_complex_filter
                        }
         self.records=self.mdt.load_records()
         fb=tk.Frame(self,relief='solid')
@@ -883,15 +956,13 @@ class MyApplication(tk.Tk):
         
         self.button_new = ttk.Button(fb,text="New log",
                                      command = lambda : self.commands['new_log']("creation"))
-        #self.button_all_filter = ttk.Button(fb,text="View All",
-        #                                   command = self.button_switch)
         self.combo_var_all_filter = tk.StringVar()
         self.combobox_all_filter = MyCombobox(fb,
                                 textvariable=self.combo_var_all_filter,
                                 values = [*self.mdt.fields['Status']['list'],'Tout'],
                                 **kwargs)
         self.combobox_all_filter.set("En cours")
-        self.combo_var_all_filter.trace('w',self.combo_filter_tree)
+        self.combo_var_all_filter.trace('w',self.combobox_filter_tree)
 
         self.filter_var=tk.StringVar()
         self.filter = ttk.Entry(fb,textvariable=self.filter_var)
@@ -953,24 +1024,81 @@ class MyApplication(tk.Tk):
 
 
     def complex_filter(self,*args):
-        top3 = tk.Toplevel()
-        top3.columnconfigure(0,weight=1)
+        top5 = tk.Toplevel(name='top5')
+        top5.title('Filtre')
+        top5.columnconfigure(0,weight=1)
 
-        complex_wid = ComplexFilter(top3,self.mdt)
-        complex_wid.grid(row=0,column=0,sticky='nswe')
+        self.complex_wid = ComplexFilter(top5,self.mdt,commands=self.commands)
+        self.complex_wid.grid(row=0,column=0,sticky='nswe',padx=5,pady=5)
 
+    def _filtering_data(self,filter_data,exclusif=True):
+        if not isinstance(filter_data,dict):
+            print('filter_data must be a dict')
+            return
+        fd=filter_data.copy()
+        fd['Date']=[]
+        
+        
+        for _ in filter_data:
+            if "date" in _.lower():
+                fd['Date'].append(filter_data[_])
+                fd.pop(_)
+        keeper=[]
+        if exclusif:
             
-    def combo_filter_tree(self,*args):
+            for record in self.records :
+                keep=[]
+                for key,value in filter_data.items():
+                    
+                    if isinstance(value,dict):
+                        if len(value.keys())==0:
+                            keep.append(True)
+                        elif key!="Status":
+                            keep.append(record[key]==value)
+                        else:
+                            x=[]
+                            for _ in value:
+                                x.append(_ in record[key])
+                            keep.append(any(x))
+                    elif isinstance(value,list):
+                        if value[0]=='' and value[1]=='':
+                            keep.append(True)
+                        else:    
+                            if value[0]=='':
+                                try:
+                                    date_1=dt.datetime.strptime(value[1],"%d/%m/%Y")
+                                except:
+                                    print('error for date_1')
+                                else:
+                                    keep.append(dt.datetime.strptime(record[key],"%d/%m/%Y")<=date_1)
+
+                            elif value[1]=='':
+                                try:
+                                    date_0=dt.datetime.strptime(value[1],"%d/%m/%Y")
+                                except:
+                                    print('error for date_0')
+                                else:
+                                    keep.append(dt.datetime.strptime(record[key],"%d/%m/%Y")>=date_0)
+
+                            else:
+                                try:
+                                    date_0=dt.datetime.strptime(value[0],"%d/%m/%Y")
+                                    date_1=dt.datetime.strptime(value[1],"%d/%m/%Y")
+                                except:
+                                    print('error for date_1 or date_0')
+                                else:
+                                    keep.append(date_0<=dt.datetime.strptime(record[key],"%d/%m/%Y")<=date_1)
+                keeper.append(all(keep))
+        data=itertools.compress(self.records,keeper)
+        #it is an iterator, so we can only use it once.carefull
+        return data
+            
+    def combobox_filter_tree(self,*args):
         
         statu=self.combo_var_all_filter.get()
         if statu in (*self.mdt.list_status,'Tout'):
-            #print('ok, statu in list')
             self.statu=statu
             self.viewall.populate(self.records,statu=self.statu)
-            if statu in ('Note','Tout','Terminé'):
-                self.alarme=False
-            else:
-                self.alarme=True
 
 
     def filter_tree(self,*args):
@@ -1040,12 +1168,11 @@ class MyApplication(tk.Tk):
                 #that will be called later
 
                 if self.statu=='Tout' or self.statu==record['Status']:
-                    update_tree=self.viewall.insert('', 'end', iid=len(self.viewall.get_children())+1, values=values)
+                    update_tree="""self.viewall.insert('', 'end', iid=len(self.viewall.get_children())+1, values=values)"""
                 else:
                     pass
                 
             elif self.mode=="modification":
-            #todo : when log edited, changing statu, do not insert anymore in treeview
                 record=self.mv.get()
                 values = [record[header] for header in self.mdt.fields.keys() if self.mdt.fields[header][self.mode]['visible']]
 
@@ -1084,9 +1211,9 @@ class MyApplication(tk.Tk):
                 #that will be called later
                 
                 if self.statu=='Tout' or self.statu==record['Status']:
-                    update_tree=self.viewall.item(self.selected, text='', values=values)
+                    update_tree='''self.viewall.item(self.selected, text='', values=values)'''
                 else :
-                    update_tree=self.viewall.delete(self.selected)
+                    update_tree='''self.viewall.delete(self.selected)'''
                     
             else:
                 self.mdt.save_entry(self.records,self.mode)
@@ -1094,7 +1221,7 @@ class MyApplication(tk.Tk):
             self.records=self.mdt.load_records()
 
             try:
-                update_tree
+                eval(update_tree)
             except:
                 pass
 
@@ -1109,8 +1236,6 @@ class MyApplication(tk.Tk):
 
     def del_log(self):
         selections=self.viewall.selection()
-        print (selections)
-        print (len(selections))
         refs=[]
         for row in selections :
             values=self.viewall.set(row)
@@ -1137,7 +1262,6 @@ class MyApplication(tk.Tk):
                 for row,record in enumerate(self.records):
                     if record['Ref']==ref:
                         self.records.pop(row)
-                        #self.records=self.mdt.load_records()
                         break
             
                 self.viewall.delete(selection)
@@ -1153,9 +1277,6 @@ class MyApplication(tk.Tk):
         self.mode=mode
         self.mv=MyView(self.top1,self.mdt,self.mode,self.commands)
 
-        #print(self.top1)
-        #print(self.mv)
-        
         self.top1.protocol('WM_DELETE_WINDOW', lambda : self.quit_w(self.nametowidget('top1')))
 
         #another more specific way to put the cursor where we want in tk.Text
@@ -1165,6 +1286,7 @@ class MyApplication(tk.Tk):
 
         if mode=="consultation":
             self.top1.title("Consulting log")
+
         else :
             self.top1.title("Creating log")
 
@@ -1203,6 +1325,8 @@ class MyApplication(tk.Tk):
                 self.mv.set(data[row_index])
                 self.mv.change_state('disabled')
                 break
+        print(self.mv.Fields['Alarme'].var.get())
+
 
     def mode_edit(self):
         self.mode="modification"
@@ -1212,10 +1336,19 @@ class MyApplication(tk.Tk):
         self.update()
         self.mv.update()
 
-    def print_(self):
-        print(self.var_list_name.get())
-        print(self.mv.Fields["Les gens concernés"].chckbt_labels)
-
+    def _show_complex_filter(self):
+        #todo : change it so it populate the current reeview in main window, and add "selection"in listbox
+        filter_data=self.complex_wid.get()
+        self.top4=tk.Toplevel(self,name='top4')
+        self.top4.title('Résultat')
+        tv=ViewAll(self.top4,self.mdt)
+        tv.grid(row=0,column=0)
+        mydata=self._filtering_data(filter_data,exclusif=True)
+        top=self.nametowidget('.top5')
+        top.destroy()
+        tv.populate(mydata,statu='Tout')
+        print('heheo')
+        
     def quit_w(self,w,save=False):
         #todo : w.destroy only once in this code
         if self.mode in ("modification","creation"):
@@ -1224,32 +1357,28 @@ class MyApplication(tk.Tk):
             if w==top1:
                 data=self.mv.get()
                 tests=[]
-                #detecting if any field is not empty when creation mode
+                #detecting if any field is not empty when creation or modifiation mode
                 if self.mode=="creation":
                     for key,value in data.items():
                         #todo : if date is diffenrete from today
                         #todo : if alarm is different from empty
                         if key == 'Note':
-                            tests.append(data['Note']!='')
+                            tests.append(data[key]!='')
                         elif key == 'Les gens concernés':
-                            tests.append(len(data['Les gens concernés'])>0)
+                            tests.append(len(data[key])>0)
                         elif key == 'Sociétés/Personnel':
-                            tests.append(len(data['Sociétés/Personnel'])>0)
+                            tests.append(len(data[key])>0)
+                        elif key == "Alarme":
+                            tests.append(data[key]!='')
                         else:
                             tests.append(False)
                         
                 elif self.mode=="modification":
                     for record in self.records:
                         if record['Ref']==data['Ref']:
-                            print('data')
-                            print (data)
-                            print ('record')
-                            print (record)
-                            
                             for key,value in data.items():
                                 tests.append(data[key]!=record[key])
-                print(self.mode)
-                print(tests)                    
+
                 if not save:
                     if any(tests):
                         fields=self.mdt.fields.keys()
@@ -1321,5 +1450,5 @@ class MyApplication(tk.Tk):
 
 if __name__=='__main__':
     app=MyApplication()
-    style=ttk.Style()
+    #style=ttk.Style()
     app.mainloop()
