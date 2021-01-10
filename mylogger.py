@@ -17,6 +17,10 @@ import csv, os, json, itertools
 #done : saving new log, adding it to treeview
 #done : when editing a log, when i press exit, it ask confirmaiton whereas i changed nothing.
 #done : deleting multiple lines and solo line
+#done : add checkbox filter by gens concerné et csociete - complex filter
+#done : when focusing LABELENTRY with date, make it so moving from entry to cal doestnt ccall error
+
+
 ####commit did a lot 001####
 
 #done: displace data treatement with save in App into save in Model
@@ -30,19 +34,20 @@ import csv, os, json, itertools
 #done : command -  populate according to complex filter selection
 ###commit 003###
 
+#done : add "select all" for chackbox label
+#done : in RESULTAT, implement doubleclick -- change design of doubleckick so it works for whatever instnce of Viewall
+#>>> get the name of the widget which has focus, then applying the methods on it
+#done : remove size max of main window
+###commit 004###
 
-#todo : add "select all" for chackbox label
 #todo : compare the memory usage of the two approach for updating treeview . destroy populate vs update just 1 entry
 #todo : update function for update treeview (destroypopulate)
-#todo : add checkbox filter by gens concerné et csociete - complex filter
 #todo : add linebreak when checkbox options doesnt fit in one line
-#todo : gestion des alarmes : ceux en cours, sceux passé, ceux terminés, récurrence,...
-#todo : when focusing LABELENTRY with date, make it so moving from entry to cal doestnt ccall error
 #todo : when in disabled mode, disable the calendar button too
+#todo : gestion des alarmes : ceux en cours, sceux passé, ceux terminés, récurrence,...
 #todo : add option filter by word in complexfilter
 #todo : create a widget datefourchette for filter use only (init,get,grid,set,etc...)
-#todo : remove size max of main window
-
+#todo : move the onclick and double click method into the ViewAll class
 FIELDS={"Ref":{"type":'Entry',
                "creation":{"visible":True,"state":"normal"},
                 "modification":{"visible":True,"state":"normal"},
@@ -554,13 +559,16 @@ class LabelEntry(tk.Frame):
         
 
     def get(self):
-        if 'Entry' in self.model.filter_fields[self.label]['type'] :
-            return self.MyEntry.get()
-        elif 'Entry' in self.model.fields[self.label]['type'] :
-            return self.MyEntry.get()
-        else:
-            #since in Text, the value will always contains \n in the end, we use rstrip to remove it
-            return self.MyEntry.get('1.0', tk.END).rstrip()
+        try:
+            type_=self.model.filter_fields[self.label]['type']
+        except:
+            type_=self.model.fields[self.label]['type']
+        finally:
+            if 'Entry' in type_ :
+                return self.MyEntry.get()
+            else:
+                #since in Text, the value will always contains \n in the end, we use rstrip to remove it
+                return self.MyEntry.get('1.0', tk.END).rstrip()
 
     def set(self,newvalue,*args,**kwargs):
         if 'Entry' in self.model.fields[self.label]['type'] :
@@ -579,6 +587,7 @@ class LabelCheckbutton(tk.Frame):
         self.parent=parent
         self.commands=self.parent.commands
         self.add_bt=add_bt
+        self.all_selected=False
         
         
         if isinstance(model.fields[self.label]['list'],list):
@@ -586,12 +595,19 @@ class LabelCheckbutton(tk.Frame):
         else:
             raise Error("Wrong model, chckbt_labels only takes list")
         
-        self.MyLabel=ttk.Label(self,text=self.label)
+        labelframe=tk.Frame(self)
+        labelframe.grid(row=0,column=0,sticky='w')
+        
+        self.MyLabel=ttk.Label(labelframe,text=self.label)
         self.sep=ttk.Separator(self,orient="horizontal")
         self.FrameCheck=tk.Frame(self)
+
+        bt_all=ttk.Button(labelframe,text='tout',width=4,command=self.select_all)
+        bt_all.grid(row=0,column=1,sticky='w')
+
         
         self.MyLabel.grid(row=0,column=0,sticky='w')
-        self.sep.grid(row=1,column=0,sticky='we')
+        self.sep.grid(row=1,column=0,sticky='we',columnspan=2)
         self.FrameCheck.grid(row=2,column=0,sticky='w')
 
         self.dict_var={}
@@ -669,9 +685,24 @@ class LabelCheckbutton(tk.Frame):
                 parent=self.outer_instance)
 
 
+    def select_all(self):
+        if self.all_selected:
+            value=0
+            self.all_selected=False
+        else:
+            value=1
+            self.all_selected=True
 
+        for chck in self.dict_var.values():
+            chck.set(value)
+
+                
+            
+        
+            
     def grid(self,row=None,column=None,sticky='WE',**kwargs):
         super().grid(row=row,column=column,sticky=sticky,**kwargs)
+
         self.columnconfigure(0,weight=1)
 
     def get(self):
@@ -774,6 +805,9 @@ class ViewAll(ttk.Treeview):
             else:
                 self.insert('', 'end', iid=counter, values=row_values)
                 counter += 1
+
+    def print_(self):
+        print('ViewAll Called')    
 
 class MyView(tk.Frame):
     def __init__(self,parent,data,mode,commands):
@@ -896,10 +930,7 @@ class ComplexFilter(tk.Frame):
         counter=0
         for label in labels:
             self.model.fields[label]['list']
-            if label == 'Status':
-                add_bt = False
-            else:
-                add_bt = True
+            add_bt = False
             self.widgets[label] = LabelCheckbutton(self,label,self.model,self.commands,add_bt=add_bt)
             self.widgets[label].grid(row=counter,column=0,columnspan=2,pady=10)
             counter+=1
@@ -982,7 +1013,7 @@ class MyApplication(tk.Tk):
         self.geometry("800x200")
         self.minsize(width=600, height=200)
         self.title('Historique')
-        self.maxsize(width=1500, height=500)
+        #self.maxsize(width=1500, height=500)
         self.columnconfigure(0,weight=1)
         self.rowconfigure(0,weight=0)
         self.rowconfigure(1,weight=1)
@@ -1005,13 +1036,15 @@ class MyApplication(tk.Tk):
 
         self.viewall.bind('<Double-1>', self.doubleclick_viewall)
         
-
         self.focus_set()
 
     def onclick_viewall(self,e):
-        item = self.viewall.identify_row(e.y)
-        if item in self.viewall.selection():
-            self.viewall.selection_remove(item)
+        widget_focused=self.focus_get()
+        widget_focused.print_()
+
+        item = widget_focused.identify_row(e.y)
+        if item in widget_focused.selection():
+            widget_focused.selection_remove(item)
             self.selected=None
             self.button_delete.configure(state="disabled")
             """if your binding returns the string 'break', it will stop event propagation and thus prevent the default
@@ -1313,9 +1346,13 @@ class MyApplication(tk.Tk):
     def doubleclick_viewall(self,*args):
         self.mode="consultation"
         self.new_log("consultation")
-        current = self.viewall.focus()
+        
+        widget_focused=self.focus_get()
+        widget_focused.print_()
+        
+        current = widget_focused.focus()
         self.selected=current
-        values = self.viewall.set(current)
+        values = widget_focused.set(current)
         ref=values["Ref"]
         data=self.mdt.load_records()
         for row,values in enumerate(data):
@@ -1347,7 +1384,11 @@ class MyApplication(tk.Tk):
         top=self.nametowidget('.top5')
         top.destroy()
         tv.populate(mydata,statu='Tout')
-        print('heheo')
+        
+        tv.bind('<1>', self.onclick_viewall)
+
+        tv.bind('<Double-1>', self.doubleclick_viewall)
+
         
     def quit_w(self,w,save=False):
         #todo : w.destroy only once in this code
