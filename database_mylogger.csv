@@ -1,1 +1,13 @@
-Ref;Date;Note;Les gens concernés;Sociétés/Personnel;Alarme
+Ref;Date;Note;Les gens concernÃ©s;SociÃ©tÃ©s/Personnel;Alarme;Status
+ref0001;29/12/2020;entry one;{'Mampi': 1};{'Irmi': 1};None;Note
+ref0002;29/12/2020;log 2;{'Estelle': 1, 'Mampi': 1};{'Directimmo': 1, 'MKR Property': 1, 'Roche Noire': 1, 'Troc & Cash': 1, 'Wave': 1};21/01/2021;En cours
+ref0003;29/12/2020;log 3;{'Estelle': 1, 'Mampi': 1};{'Directimmo': 1, 'Troc & Cash': 1};15/01/2021;En cours
+ref0005;30/12/2020;test 05 add new then treeview TOUT;{'Mario': 1};{'Directimmo': 1};None;Note
+ref0006;30/12/2020;test 06 NOTE ad new;{'FMF': 1};{'Roche Noire': 1};None;Note
+ref0012;30/12/2020;happy new year;{'Estelle': 1, 'FMF': 1, 'Hery': 1, 'Jena': 1, 'Joe': 1, 'Mampi': 1, 'Mario': 1, 'Nomena': 1, 'Rija': 1, 'Santatra': 1, 'Williamson': 1};{'BNI': 1, 'Directimmo': 1, 'Irmi': 1, 'MKR Property': 1, 'MMN': 1, 'Roche Noire': 1, 'Troc & Cash': 1, 'Wave': 1};01/01/2021;En cours
+ref0013;03/01/2021;test new transfert note;{'FMF': 1};{'Roche Noire': 1};None;Note
+ref0014;03/01/2021;new lofNoteg 2021;{'Mampi': 1};{'Irmi': 1};None;Note
+ref0015;03/01/2021;new log i said 2021;{'Mampi': 1};{'Irmi': 1};None;Note
+ref0016;03/01/2021;hello again 2021;{'Estelle': 1, 'Mampi': 1, 'Williamson': 1};{'BNI': 1};None;Note
+ref0017;03/01/2021;sophiiiie wa;{'Mampi': 1};{'Irmi': 1};None;Note
+ref0018;04/01/2021;test implementation eval dans save_entry;{'Mampi': 1};{'Irmi': 1};None;Note
