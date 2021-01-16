@@ -40,14 +40,24 @@ import csv, os, json, itertools
 #done : remove size max of main window
 ###commit 004###
 
+#done : introduction de "Trop tard"
+#done : maj auto from "En cours" to ""trop tard"
+#done : implemented "Suivi" (which is "en cours" and "trop tard")
+#done : ajouter colonne "nombre de jour avant deadline"
+###commit 005###
+
 #todo : compare the memory usage of the two approach for updating treeview . destroy populate vs update just 1 entry
 #todo : update function for update treeview (destroypopulate)
 #todo : add linebreak when checkbox options doesnt fit in one line
 #todo : when in disabled mode, disable the calendar button too
-#todo : gestion des alarmes : ceux en cours, sceux passé, ceux terminés, récurrence,...
+#todo : gestion des alarmes : ceux en cours, ceux passé, ceux terminés, récurrence,...
+#todo : introduire la récurrence po ur les alarme
+#todo : introduire tri en cliquant sur les colones
+#todo : quand survol sur un row, info bulle qui montre le nombre de jours restant
 #todo : add option filter by word in complexfilter
-#todo : create a widget datefourchette for filter use only (init,get,grid,set,etc...)
+#todo : create a widget datefourchette for filter use only (init,get,grid,set,etc...) to make it easier
 #todo : move the onclick and double click method into the ViewAll class
+
 FIELDS={"Ref":{"type":'Entry',
                "creation":{"visible":True,"state":"normal"},
                 "modification":{"visible":True,"state":"normal"},
@@ -104,9 +114,16 @@ FIELDS={"Ref":{"type":'Entry',
                   "list":[],
                "width":70,
                   "req":True
-
-                 }
-            }
+                  },
+        "ETA":{"type":'Entry',
+               "creation":{"visible":False,"state":"normal"},
+                "modification":{"visible":False,"state":"normal"},
+               "consultation":{"visible":False,"state":"disabled"},
+                  "list":[],
+               "width":115,
+                  "req":False
+                  }
+                }
 def testdate(date):
     try:
         dt.datetime.strptime(date,"%d/%m/%Y")
@@ -122,7 +139,7 @@ class MyData:
     filename="database_mylogger.csv"
     list_file="list_file.json"
     list_societe=[]
-    list_status=['Note', 'En cours', 'Terminé']
+    list_status=['Note', 'En cours', 'Trop tard', 'Terminé']
     list_name=[]
 
     def __init__ (self):
@@ -158,7 +175,7 @@ class MyData:
                                       "consultation":{"visible":True,"state":"disabled"},
                                       "width":150
                                      },
-                            "Status":self.fields["Status"]
+                            "Status":self.fields["Status"],
                             }
         
     def new_file(self):
@@ -288,25 +305,41 @@ what you can do to read it multiple time is :
             
             if len(missing_fields) > 0:
                 raise Exception(
-                    
                     "File is missing fields: {}".format(', '.join(missing_fields))
                     )
             else:
-                data =list(csvreader)
+                data = list(csvreader)
                 """converting some data into python data"""
                 for row in data:
                     for field,value in row.items():
                         if value=='None':
                             row[field]=''
-
+            #we update statut of log with alarm to know if too late 
             #we directly convert our string loaded from save that should be a dict into a dict 
+            #we treat and update the ETA
             chck_fields=[x for x in self.fields if self.fields[x]['type']=='Checkbox']
             for row in data:
+                if row['Status'] == "En cours":
+                    if dt.datetime.strptime(row['Alarme'],"%d/%m/%Y") < dt.datetime.now():
+                        row['Status'] = "Trop tard"
+
+                if row['Status'] in ("En cours", "Trop tard"):
+                    ETA = dt.datetime.now() - dt.datetime.strptime(row['Alarme'],"%d/%m/%Y")
+                    x=str(-int(ETA.days))+' days, '+str(format(int(ETA.seconds/3600),'.1f'))+' hours'
+                    if dt.datetime.strptime(row['Alarme'],"%d/%m/%Y") < dt.datetime.now():
+                        x="- "+x.replace("-","")
+                    row['ETA'] = x
+                else:
+                    row['ETA'] = 0
+                    
+                    
+
                 for field in chck_fields:
                     converted=eval(row[field])
                     row[field]=converted
+
             return data
-            
+         
 
     def save_lists(self):
         with open(self.list_file,'w') as fh:
@@ -799,7 +832,11 @@ class ViewAll(ttk.Treeview):
             row_values=self.formating(row_data)
 
             if statu!='Tout':
-                if row_data['Status']==statu:
+                if statu == "Suivi":
+                    statu_s=["En cours","Trop tard"]
+                else:
+                    statu_s=[statu]
+                if row_data['Status'] in statu_s:
                     self.insert('', 'end', iid=counter, values=row_values)
                     counter += 1
             else:
@@ -966,7 +1003,7 @@ class MyApplication(tk.Tk):
     def __init__(self,*args,**kwargs):
         super().__init__(*args,**kwargs)
         self.mode="consultation"
-        self.statu='En cours'
+        self.statu='Suivi'
         self.mdt=MyData()
         self.selected=None
         self.commands={'save_entry' : self.save_entry,
@@ -990,9 +1027,9 @@ class MyApplication(tk.Tk):
         self.combo_var_all_filter = tk.StringVar()
         self.combobox_all_filter = MyCombobox(fb,
                                 textvariable=self.combo_var_all_filter,
-                                values = [*self.mdt.fields['Status']['list'],'Tout'],
+                                values = [*self.mdt.fields['Status']['list'],'Tout',"Suivi"],
                                 **kwargs)
-        self.combobox_all_filter.set("En cours")
+        self.combobox_all_filter.set("Suivi")
         self.combo_var_all_filter.trace('w',self.combobox_filter_tree)
 
         self.filter_var=tk.StringVar()
@@ -1010,8 +1047,8 @@ class MyApplication(tk.Tk):
         self.complex_filter.grid(row=0,column=3,sticky='w',padx=5,pady=5)
         self.filter.grid(row=0,column=4,sticky='we',padx=5,pady=5)
 
-        self.geometry("800x200")
-        self.minsize(width=600, height=200)
+        self.geometry("910x200")
+        self.minsize(width=500, height=200)
         self.title('Historique')
         #self.maxsize(width=1500, height=500)
         self.columnconfigure(0,weight=1)
@@ -1028,7 +1065,7 @@ class MyApplication(tk.Tk):
         self.viewall.columnconfigure(0,weight=1)
         self.viewall.rowconfigure(0,weight=1)
 
-        self.viewall.populate(self.records,statu='En cours')
+        self.viewall.populate(self.records,statu='Suivi')
         
         self.update_idletasks()
 
@@ -1129,7 +1166,7 @@ class MyApplication(tk.Tk):
     def combobox_filter_tree(self,*args):
         
         statu=self.combo_var_all_filter.get()
-        if statu in (*self.mdt.list_status,'Tout'):
+        if statu in (*self.mdt.list_status,'Tout','Suivi'):
             self.statu=statu
             self.viewall.populate(self.records,statu=self.statu)
 
