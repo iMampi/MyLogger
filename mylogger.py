@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, messagebox, simpledialog
+from tkinter import Label, ttk, messagebox, simpledialog
 import datetime as dt
 from tkcalendar import *
 import csv
@@ -48,6 +48,13 @@ import itertools
 # done : implemented "Suivi" (which is "en cours" and "trop tard")
 # done : ajouter colonne "nombre de jour avant deadline"
 ###commit 005###
+# done : create a widget datefourchette for filter use only (init,get,grid,set,etc...) to make it easier
+# done : add option filter by word in complexfilter
+# done : fixed tk.calendar not wokring in complex_filter
+# done : fixed _filtering_data method
+#done : implement get for complexfilter 'Note', search by word
+
+###commit 006###
 
 # todo : compare the memory usage of the two approach for updating treeview . destroy populate vs update just 1 entry
 # todo : update function for update treeview (destroypopulate)
@@ -57,31 +64,32 @@ import itertools
 # todo : introduire la récurrence po ur les alarme
 # todo : introduire tri en cliquant sur les colones
 # todo : quand survol sur un row, info bulle qui montre le nombre de jours restant
-# todo : add option filter by word in complexfilter
-# todo : create a widget datefourchette for filter use only (init,get,grid,set,etc...) to make it easier
 # todo : move the onclick and double click method into the ViewAll class
+#todo : combobox selector, when typig something that is not in the list, get back to last value
 
 FIELDS = {"Ref": {"type": 'Entry',
                   "creation": {"visible": True, "state": "normal"},
                   "modification": {"visible": True, "state": "normal"},
                   "consultation": {"visible": True, "state": "readonly"},
                   "width": 50,
-                  "req": True
+                  "req": True,
+                  "filter" : False
                   },
           "Date": {"type": 'DateEntry',
                    "creation": {"visible": True, "state": "normal"},
                    "modification": {"visible": True, "state": "normal"},
                    "consultation": {"visible": True, "state": "readonly"},
                    "width": 70,
-                   "req": True
-
+                   "req": True,
+                   "filter" : False
                    },
           "Note": {"type": 'Text',
                    "creation": {"visible": True, "state": "normal"},
                    "modification": {"visible": True, "state": "normal"},
                    "consultation": {"visible": True, "state": "normal"},
                    "width": 200,
-                   "req": True
+                   "req": True,
+                  "filter" : True
                    },
           "Les gens concernés": {"type": 'Checkbox',
                                  "creation": {"visible": True, "state": "normal"},
@@ -90,8 +98,8 @@ FIELDS = {"Ref": {"type": 'Entry',
                                  "list": [],
                                  "command": "add_name",
                                  "width": 150,
-                                 "req": True
-
+                                 "req": True,
+                                 "filter" : True
                                  },
           "Sociétés/Personnel": {"type": 'Checkbox',
                                  "creation": {"visible": True, "state": "normal"},
@@ -100,15 +108,16 @@ FIELDS = {"Ref": {"type": 'Entry',
                                  "list": [],
                                  "command": "add_societe",
                                  "width": 150,
-                                 "req": True
-
+                                 "req": True,
+                                 "filter" : True
                                  },
           "Alarme": {"type": 'DateEntry',
                      "creation": {"visible": True, "state": "disabled"},
                      "modification": {"visible": True, "state": "normal"},
                      "consultation": {"visible": True, "state": "disabled"},
                      "width": 70,
-                     "req": False
+                     "req": False,
+                     "filter" : True
                      },
           "Status": {"type": 'ComboboxEntry',
                      "creation": {"visible": False, "state": "normal"},
@@ -116,7 +125,8 @@ FIELDS = {"Ref": {"type": 'Entry',
                      "consultation": {"visible": True, "state": "disabled"},
                      "list": [],
                      "width": 70,
-                     "req": True
+                     "req": True,
+                     "filter" : True
                      },
           "ETA": {"type": 'Entry',
                   "creation": {"visible": False, "state": "normal"},
@@ -124,7 +134,8 @@ FIELDS = {"Ref": {"type": 'Entry',
                   "consultation": {"visible": False, "state": "disabled"},
                   "list": [],
                   "width": 115,
-                  "req": False
+                  "req": False,
+                  "filter" : False
                   }
           }
 
@@ -159,23 +170,19 @@ class MyData:
         for statu in self.list_status:
             self.fields["Status"]['list'].append(statu)
 
-        self.filter_fields = {"Date début": {"type": 'DateEntry',
+        self.filter_fields = {"Note" :{"type": 'Entry',
+                                    "creation": {"visible": True, "state": "normal"},
+                                    "modification": {"visible": True, "state": "normal"},
+                                    "consultation": {"visible": True, "state": "normal"},
+                                    "width": 200,
+                                    },
+                              "Date": {"type": 'Labelfourchette',
                                              "creation": {"visible": True, "state": "normal"},
                                              "consultation": {"visible": True, "state": "disabled"},
                                              "width": 150
                                              },
-                              "Date fin": {"type": 'DateEntry',
-                                           "creation": {"visible": True, "state": "normal"},
-                                           "consultation": {"visible": True, "state": "disabled"},
-                                           "width": 150
-                                           },
                               "Les gens concernés": self.fields["Les gens concernés"],
                               "Sociétés/Personnel": self.fields["Sociétés/Personnel"],
-                              "Mots clefs dans notes": {"type": 'Entry',
-                                                        "creation": {"visible": True, "state": "normal"},
-                                                        "consultation": {"visible": True, "state": "disabled"},
-                                                        "width": 150
-                                                        },
                               "Status": self.fields["Status"],
                               }
 
@@ -397,7 +404,7 @@ class MyDateEntry(tk.Frame):
 
         super().__init__(parent, *args, **kwargs)
 
-        self.entry_var = textvariable
+        self.entry_var = textvariable()
         self.parent = parent
 
         self.entry = ttk.Entry(self, textvariable=self.entry_var, state=state)
@@ -543,9 +550,43 @@ class MyDateEntry(tk.Frame):
     def delete(self, first, last=tk.END):
         self.entry.delete(first, last)
 
+class LabelFourchette(tk.Frame):
+    def __init__(self, parent, label, *args, **kwargs):
+        super().__init__(parent, *args, **kwargs)
+        self.parent = parent
+        self.label = label
+        self.widgets = {}
+
+        lab = tk.Label(self,text = self.label,anchor='w')
+        lab.grid(row=0,column=0,sticky='we')
+        sep = ttk.Separator(self, orient="horizontal")
+        sep.grid(row=1,column=0,sticky='we',columnspan=4)
+
+        self.widgets['widget_debut'] = MyDateEntry(self)
+        self.widgets['widget_debut'].grid(row=2,column=0,sticky='w')
+
+        entre = tk.Label(self,text = "à")
+        entre.grid(row=2,column=1,padx=5,sticky='w')
+
+        self.widgets['widget_fin'] = MyDateEntry(self)
+        self.widgets['widget_fin'].grid(row=2,column=2,sticky='w')
+        #self.columnconfigure(0,weight=1)
+        #self.columnconfigure(1,weight=1)
+        #self.columnconfigure(2,weight=1)
+
+    def get (self):
+        return [self.widgets[w].get() for w in self.widgets]
+    
+    def grid(self,row=0,column=0,sticky='we',**kwargs):
+        super().grid(row=row, column=column,sticky=sticky,**kwargs)
+        self.columnconfigure(0, weight=0)
+        self.columnconfigure(1, weight=0)
+        self.columnconfigure(2, weight=0)
+        self.columnconfigure(3, weight=1)
+
 
 class LabelEntry(tk.Frame):
-    def __init__(self, parent, label, model, **kwargs):
+    def __init__(self, parent, label, model, *args , **kwargs):
         super().__init__(parent, **kwargs)
 
         self.parent = parent
@@ -587,16 +628,15 @@ class LabelEntry(tk.Frame):
         self.columnconfigure(0, weight=1)
 
     def get(self):
-        try:
-            type_ = self.model.filter_fields[self.label]['type']
-        except:
+        if isinstance(self.parent,MyView):
             type_ = self.model.fields[self.label]['type']
-        finally:
-            if 'Entry' in type_:
-                return self.MyEntry.get()
-            else:
-                # since in Text, the value will always contains \n in the end, we use rstrip to remove it
-                return self.MyEntry.get('1.0', tk.END).rstrip()
+        else:
+            type_ = self.model.filter_fields[self.label]['type']
+        if 'Entry' in type_:
+            return self.MyEntry.get()
+        else:
+            # since in Text, the value will always contains \n in the end, we use rstrip to remove it
+            return self.MyEntry.get('1.0', tk.END).rstrip()
 
     def set(self, newvalue, *args, **kwargs):
         if 'Entry' in self.model.fields[self.label]['type']:
@@ -956,22 +996,49 @@ class ComplexFilter(tk.Frame):
         labels = []
         self.commands = commands
 
-        # todo : combine those two succesive block
-        for header in self.model.fields:
-            if self.model.fields[header].get('list', None) != None:
-                labels.append(header)
-        print(labels)
-
+        #self.fourchette = LabelFourchette(self, "Date")
+        #self.fourchette.grid(row=0,column=0)
+        
         self.widgets = {}
         counter = 0
+        
+        for header in self.model.filter_fields:
+            if self.model.filter_fields[header].get('type', None) == 'Entry' :
+                self.widgets[header] = LabelEntry(
+                    self,header,self.model
+                    )
+            elif self.model.filter_fields[header].get('type', None) == 'Labelfourchette' :
+                self.widgets[header] = LabelFourchette(
+                    self,header
+                    )
+            elif self.model.filter_fields[header].get('type', None) in ('Checkbox','ComboboxEntry') :
+                self.widgets[header] = LabelCheckbutton(
+                    self, header, self.model, self.commands, add_bt=False
+                    )
+            self.widgets[header].grid(row=counter, column=0, columnspan=2,pady=5)
+            counter+=1
+
+        """ 
+        # todo : combine those two succesive block
+
         for label in labels:
-            self.model.fields[label]['list']
-            add_bt = False
-            self.widgets[label] = LabelCheckbutton(
-                self, label, self.model, self.commands, add_bt=add_bt)
-            self.widgets[label].grid(
-                row=counter, column=0, columnspan=2, pady=10)
-            counter += 1
+            if self.model.fields[label].get("list",None):
+                #self.model.fields[label]['list']
+                add_bt = False
+                self.widgets[label] = LabelCheckbutton(
+                    self, label, self.model, self.commands, add_bt=add_bt)
+                self.widgets[label].grid(
+                    row=counter, column=0, columnspan=2, pady=10)
+                counter += 1
+            else:
+                self.widgets[label] = LabelEntry(
+                    self,label, self.model
+                    )
+                self.widgets[label].grid(
+                    row=counter, column=0, columnspan=2, pady=10
+                    )
+                counter += 1
+
 
         self.widgets["date01"] = LabelEntry(
             self, "Date début", self.model, **kwargs)
@@ -983,11 +1050,15 @@ class ComplexFilter(tk.Frame):
 # sep=ttk.Separator(self,orient="horizontal")
 ##        sep.grid(row=counter+2,column=0,sticky='we',columnspan=2, padx=0, pady=(10,0))
 
+        """
+
         self.button_ok = ttk.Button(self, text="Apply",
                                     command=self.commands['apply_complex_filter'])
         self.button_ok.grid(row=counter+2, column=1, sticky='e', pady=(0, 0))
+        
+        self.columnconfigure(0,weight=1)
+        self.columnconfigure(1,weight=1)
 
-        pass
 
     def get(self):
         data = {}
@@ -995,7 +1066,6 @@ class ComplexFilter(tk.Frame):
             value = widget.get()
             data[key] = value
         # todo : formatting data. None = all. add "Tout" to Status"
-        print(data)
         return data
 
 
@@ -1108,13 +1178,7 @@ class MyApplication(tk.Tk):
         if not isinstance(filter_data, dict):
             print('filter_data must be a dict')
             return
-        fd = filter_data.copy()
-        fd['Date'] = []
 
-        for _ in filter_data:
-            if "date" in _.lower():
-                fd['Date'].append(filter_data[_])
-                fd.pop(_)
         keeper = []
         if exclusif:
 
@@ -1149,7 +1213,7 @@ class MyApplication(tk.Tk):
                             elif value[1] == '':
                                 try:
                                     date_0 = dt.datetime.strptime(
-                                        value[1], "%d/%m/%Y")
+                                        value[0], "%d/%m/%Y")
                                 except:
                                     print('error for date_0')
                                 else:
@@ -1167,6 +1231,17 @@ class MyApplication(tk.Tk):
                                 else:
                                     keep.append(date_0 <= dt.datetime.strptime(
                                         record[key], "%d/%m/%Y") <= date_1)
+                    elif isinstance(value, str):
+                        #look for words or
+                        word_list =  value.split(' ')
+                        for word in word_list:
+                            valid=False
+                            if word.lower() in record['Note'].lower():
+                                valid=True
+                                break
+                            keep.append(valid)
+
+
                 keeper.append(all(keep))
         data = itertools.compress(self.records, keeper)
         # it is an iterator, so we can only use it once.carefull
