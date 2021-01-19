@@ -48,13 +48,16 @@ import itertools
 # done : implemented "Suivi" (which is "en cours" and "trop tard")
 # done : ajouter colonne "nombre de jour avant deadline"
 ###commit 005###
+
 # done : create a widget datefourchette for filter use only (init,get,grid,set,etc...) to make it easier
 # done : add option filter by word in complexfilter
 # done : fixed tk.calendar not wokring in complex_filter
 # done : fixed _filtering_data method
 #done : implement get for complexfilter 'Note', search by word
-
 ###commit 006###
+
+#done : combobox selector, when typig something that is not in the list, get back to last value
+###commit 007###
 
 # todo : compare the memory usage of the two approach for updating treeview . destroy populate vs update just 1 entry
 # todo : update function for update treeview (destroypopulate)
@@ -65,7 +68,6 @@ import itertools
 # todo : introduire tri en cliquant sur les colones
 # todo : quand survol sur un row, info bulle qui montre le nombre de jours restant
 # todo : move the onclick and double click method into the ViewAll class
-#todo : combobox selector, when typig something that is not in the list, get back to last value
 
 FIELDS = {"Ref": {"type": 'Entry',
                   "creation": {"visible": True, "state": "normal"},
@@ -380,9 +382,53 @@ class MyCombobox(ttk.Combobox):
     def __init__(self, parent, *args, textvariable=None, values=None, **kwargs):
         super().__init__(parent, *args, textvariable=textvariable, values=values, **kwargs)
         self.var = textvariable
-        self.values = [*values, 'Tout']
+        self.values = [*values]
+        print(self.values)
         # self.var.trace('w',self.filter)
         #self.bind("<<ComboboxSelected>>", self.event_generate('<Button-1>'))
+        self.last_valid_value = self.get()
+
+        vcmd = self.register(self._validate)
+        invcmd = self.register(self._invalidate)
+        self.configure(
+            validate='all',
+            validatecommand=(vcmd, '%P', '%s', '%S', '%V', '%i', '%d'),
+            invalidcommand=(invcmd, '%P', '%s', '%S', '%V', '%i', '%d')
+        )
+
+    def _typing(self,proposed):
+        typed = proposed.lower()
+        potentials = []
+        for value in self.values:
+            v=value.lower()
+            if v.startswith(typed):
+                potentials.append(v.capitalize())
+        if len(potentials) == 1:
+            self.var.set(potentials[0])
+            return True
+        else:
+            return False
+
+    def _validate(self, proposed, current, char, event, index, action):
+        valid = True
+        if current in self.values:
+            self.last_valid_value = self.var.get()
+        if event == 'focusout':
+            if current not in self.values:
+                valid = False
+        elif action == '0':
+            valid = True
+        elif action == '1':
+            self._typing(proposed)
+
+        return valid
+
+    def _invalidate(self, proposed, current, char, event, index, action):
+        self.var.set(self.last_valid_value)
+
+
+
+
 
 
 # def filter(self,*args):
