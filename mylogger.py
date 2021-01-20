@@ -59,14 +59,17 @@ import itertools
 #done : combobox selector, when typig something that is not in the list, get back to last value
 ###commit 007###
 
+# done : again fixed tk.calendar not wokring in complex_filter. when called multiple time from new log and complefilter
+# done : when in disabled mode, disable the calendar button too
+# done : when in disabled mode, disable the checkbox button "tout"
+###commit 008###
+
 # todo : compare the memory usage of the two approach for updating treeview . destroy populate vs update just 1 entry
 # todo : update function for update treeview (destroypopulate)
 # todo : add linebreak when checkbox options doesnt fit in one line
-# todo : when in disabled mode, disable the calendar button too
 # todo : gestion des alarmes : ceux en cours, ceux passé, ceux terminés, récurrence,...
 # todo : introduire la récurrence po ur les alarme
 # todo : introduire tri en cliquant sur les colones
-# todo : quand survol sur un row, info bulle qui montre le nombre de jours restant
 # todo : move the onclick and double click method into the ViewAll class
 
 FIELDS = {"Ref": {"type": 'Entry',
@@ -446,14 +449,14 @@ class MyCombobox(ttk.Combobox):
 
 class MyDateEntry(tk.Frame):
 
-    def __init__(self, parent, *args, textvariable=tk.StringVar, state='Normal', **kwargs):
+    def __init__(self, parent, *args, textvariable=tk.StringVar, state='normal', **kwargs):
 
         super().__init__(parent, *args, **kwargs)
 
-        self.entry_var = textvariable()
+        self.entry_var = textvariable
         self.parent = parent
-
-        self.entry = ttk.Entry(self, textvariable=self.entry_var, state=state)
+        self.state = state
+        self.entry = ttk.Entry(self, textvariable=self.entry_var, state=self.state)
         vcmd = self.entry.register(self._validate)
         invcmd = self.entry.register(self._invalidate)
         self.entry.configure(
@@ -463,7 +466,7 @@ class MyDateEntry(tk.Frame):
         )
 
         self.button_cal = ttk.Button(
-            self, text='...', command=self.top_cal, width=3)
+            self, text='...', command=self.top_cal,state =self.state, width=3)
 
         self.button_cal.grid(row=0, column=1, sticky='we')
         self.entry.grid(row=0, column=0, sticky='we')
@@ -596,6 +599,24 @@ class MyDateEntry(tk.Frame):
     def delete(self, first, last=tk.END):
         self.entry.delete(first, last)
 
+    def configure(self, **kwargs):
+        #super().configure(**kwargs)
+        entry_kwargs={}
+        button_kwargs={}
+        if "textvariable" in kwargs:
+            entry_kwargs["textvariable"]=kwargs["textvariable"]
+        if "background" in kwargs:
+            entry_kwargs["background"]=kwargs["background"]
+        if "state" in kwargs:
+            entry_kwargs["state"]=kwargs["state"]
+            button_kwargs["state"]=kwargs["state"]
+
+        self.entry.configure(**entry_kwargs)
+        self.button_cal.configure(**button_kwargs)
+
+
+
+
 class LabelFourchette(tk.Frame):
     def __init__(self, parent, label, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
@@ -608,13 +629,13 @@ class LabelFourchette(tk.Frame):
         sep = ttk.Separator(self, orient="horizontal")
         sep.grid(row=1,column=0,sticky='we',columnspan=4)
 
-        self.widgets['widget_debut'] = MyDateEntry(self)
+        self.widgets['widget_debut'] = MyDateEntry(self,textvariable=tk.StringVar())
         self.widgets['widget_debut'].grid(row=2,column=0,sticky='w')
 
         entre = tk.Label(self,text = "à")
         entre.grid(row=2,column=1,padx=5,sticky='w')
 
-        self.widgets['widget_fin'] = MyDateEntry(self)
+        self.widgets['widget_fin'] = MyDateEntry(self,textvariable=tk.StringVar())
         self.widgets['widget_fin'].grid(row=2,column=2,sticky='w')
         #self.columnconfigure(0,weight=1)
         #self.columnconfigure(1,weight=1)
@@ -632,7 +653,7 @@ class LabelFourchette(tk.Frame):
 
 
 class LabelEntry(tk.Frame):
-    def __init__(self, parent, label, model, *args , **kwargs):
+    def __init__(self, parent, label, model, *args , state="normal", **kwargs):
         super().__init__(parent, **kwargs)
 
         self.parent = parent
@@ -640,6 +661,7 @@ class LabelEntry(tk.Frame):
         self.label = label
         self.var = tk.StringVar()
         self.MyLabel = ttk.Label(self, text=label)
+        self.state = state
         if isinstance(parent, MyView):
 
             checker = self.model.fields
@@ -649,21 +671,25 @@ class LabelEntry(tk.Frame):
         if checker[label]['type'] == 'Entry':
             self.MyEntry = ttk.Entry(self,
                                      textvariable=self.var,
+                                     state=self.state,
                                      **kwargs)
         elif checker[label]['type'] == 'DateEntry':
             self.MyEntry = MyDateEntry(self,
                                        textvariable=self.var,
+                                       state=self.state,
                                        **kwargs)
         elif checker[label]['type'] == 'ComboboxEntry':
             self.MyEntry = MyCombobox(self,
                                       textvariable=self.var,
                                       values=checker[label]['list'],
+                                      state=self.state,
                                       **kwargs)
         else:
             self.MyEntry = tk.Text(self,
                                    height=5,
                                    borderwidth=0.5,
-                                   relief='solid')
+                                   relief='solid',
+                                   state=self.state)
         self.sep = ttk.Separator(self, orient="horizontal")
 
     def grid(self, row=None, column=None, sticky='we', **kwargs):
@@ -715,9 +741,9 @@ class LabelCheckbutton(tk.Frame):
         self.sep = ttk.Separator(self, orient="horizontal")
         self.FrameCheck = tk.Frame(self)
 
-        bt_all = ttk.Button(labelframe, text='tout',
+        self.bt_all = ttk.Button(labelframe, text='tout',
                             width=4, command=self.select_all)
-        bt_all.grid(row=0, column=1, sticky='w')
+        self.bt_all.grid(row=0, column=1, sticky='w')
 
         self.MyLabel.grid(row=0, column=0, sticky='w')
         self.sep.grid(row=1, column=0, sticky='we', columnspan=2)
@@ -848,6 +874,14 @@ class LabelCheckbutton(tk.Frame):
 
         self.top.protocol('WM_DELETE_WINDOW',
                           lambda: self.parent.commands['quit_w'](self.top))
+
+    def configure(self, **kwargs):
+        #i treat only "state" cause we treat only "state" in the programm
+        for chckbt in self.dict_chckbt.values():
+            chckbt.configure(**kwargs)
+        self.button_add.configure(**kwargs)
+        self.bt_all.configure(**kwargs)
+
 
 ##VIEW##
 
@@ -1001,11 +1035,14 @@ class MyView(tk.Frame):
                 widget.MyEntry.configure(state="disabled", background=color)
 
             elif field in ("Date", "Alarme"):
-                widget.MyEntry.entry.configure(state=state, background=color)
+                #widget.MyEntry.entry.configure(state=state, background=color)
+                widget.MyEntry.configure(state=state, background=color)
+
             else:
-                for chckbt in widget.dict_chckbt.values():
-                    chckbt.configure(state=state)
-                widget.button_add.configure(state=state)
+                #for chckbt in widget.dict_chckbt.values():
+                    #chckbt.configure(state=state)
+                widget.configure(state=state)
+                #widget.button_add.configure(state=state)
 
         self.update_idletasks()
 
@@ -1563,48 +1600,52 @@ class MyApplication(tk.Tk):
         # todo : w.destroy only once in this code
         if self.mode in ("modification", "creation"):
             ##########
-            top1 = self.nametowidget('.top1')
-            if w == top1:
-                data = self.mv.get()
-                tests = []
-                # detecting if any field is not empty when creation or modifiation mode
-                if self.mode == "creation":
-                    for key, value in data.items():
-                        # todo : if date is diffenrete from today
-                        # todo : if alarm is different from empty
-                        if key == 'Note':
-                            tests.append(data[key] != '')
-                        elif key == 'Les gens concernés':
-                            tests.append(len(data[key]) > 0)
-                        elif key == 'Sociétés/Personnel':
-                            tests.append(len(data[key]) > 0)
-                        elif key == "Alarme":
-                            tests.append(data[key] != '')
-                        else:
-                            tests.append(False)
+            try:
+                top1 = self.nametowidget('.top1')
+            except:
+                print('top1 is missing')
+            else:
+                if w == top1:
+                    data = self.mv.get()
+                    tests = []
+                    # detecting if any field is not empty when creation or modifiation mode
+                    if self.mode == "creation":
+                        for key, value in data.items():
+                            # todo : if date is diffenrete from today
+                            # todo : if alarm is different from empty
+                            if key == 'Note':
+                                tests.append(data[key] != '')
+                            elif key == 'Les gens concernés':
+                                tests.append(len(data[key]) > 0)
+                            elif key == 'Sociétés/Personnel':
+                                tests.append(len(data[key]) > 0)
+                            elif key == "Alarme":
+                                tests.append(data[key] != '')
+                            else:
+                                tests.append(False)
 
-                elif self.mode == "modification":
-                    for record in self.records:
-                        if record['Ref'] == data['Ref']:
-                            for key, value in data.items():
-                                tests.append(data[key] != record[key])
+                    elif self.mode == "modification":
+                        for record in self.records:
+                            if record['Ref'] == data['Ref']:
+                                for key, value in data.items():
+                                    tests.append(data[key] != record[key])
 
-                if not save:
-                    if any(tests):
-                        fields = self.mdt.fields.keys()
-                        dd = dict(zip(fields, tests))
-                        x = [field for field, value in dd.items() if value == True]
-                        quitting = messagebox.askyesno(title="Quitting",
-                                                       message="Des champs ont été modifié : {}.".format(
-                                                           ', '.join(x)),
-                                                       detail="Etes-vous sûr de vouloir abandonner l'enregistrement en cours?",
-                                                       parent=w)
-                        if not quitting:
-                            return
-                        else:
-                            pass
+                    if not save:
+                        if any(tests):
+                            fields = self.mdt.fields.keys()
+                            dd = dict(zip(fields, tests))
+                            x = [field for field, value in dd.items() if value == True]
+                            quitting = messagebox.askyesno(title="Quitting",
+                                                           message="Des champs ont été modifié : {}.".format(
+                                                               ', '.join(x)),
+                                                           detail="Etes-vous sûr de vouloir abandonner l'enregistrement en cours?",
+                                                           parent=w)
+                            if not quitting:
+                                return
+                            else:
+                                pass
 
-                self.grab_set()
+                    self.grab_set()
             try:
                 """widgetadd for checkbuttons first line"""
                 top2 = self.nametowidget(
