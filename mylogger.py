@@ -64,6 +64,11 @@ import itertools
 # done : when in disabled mode, disable the checkbox button "tout"
 ###commit 008###
 
+# done : problem when saving keyerror ETA
+# done : MODE became a global variable
+###commit 009###
+
+
 # todo : compare the memory usage of the two approach for updating treeview . destroy populate vs update just 1 entry
 # todo : update function for update treeview (destroypopulate)
 # todo : add linebreak when checkbox options doesnt fit in one line
@@ -71,7 +76,11 @@ import itertools
 # todo : introduire la récurrence po ur les alarme
 # todo : introduire tri en cliquant sur les colones
 # todo : move the onclick and double click method into the ViewAll class
+# todo : see if there other variable that we can/should turn into a global variable
+# todo : to move double clik into view all, must make application.mode into a global variable
 
+
+MODE="consultation"
 FIELDS = {"Ref": {"type": 'Entry',
                   "creation": {"visible": True, "state": "normal"},
                   "modification": {"visible": True, "state": "normal"},
@@ -213,9 +222,9 @@ class MyData:
                            'list_societe': self.list_societe}, fh)
             print('No datalist found. Created new datalist.')
 
-    def save_entry(self, data, mode):
+    def save_entry(self, data):
 
-        if mode == "creation":
+        if MODE == "creation":
             # here data is a dict
             if 'Status' not in data.keys() or data['Status'] in [None, '']:
                 if data['Alarme'] in (None, '', 'None'):
@@ -226,6 +235,8 @@ class MyData:
                 for field, value in data.items():
                     if value in (None, '', '\n'):
                         data[field] = 'None'
+            if 'ETA' not in data.keys() :
+                data['ETA'] = 'None'
 
             with open(self.filename, 'a', newline='', encoding='utf-8') as fh:
                 csvwriter = csv.DictWriter(fh,
@@ -911,22 +922,20 @@ class ViewAll(ttk.Treeview):
     def formating(self, row_data):
         row_values = []
         for header in self.headers:
+
             # todo : what if ml is empty
             # todo : get rid of the conversion into dict because we already convert it all into a dict when we load all records
 
             if header in ("Les gens concernés", "Sociétés/Personnel"):
                 ml = []
-                if type(row_data[header]) != dict:
-                    mydict = eval(row_data[header])
-                else:
-                    mydict = row_data[header]
+                mydict = row_data[header]
                 for key, value in mydict.items():
                     if value == 1:
                         ml.append(key)
                 ml = ", ".join(ml)
                 row_values.append(ml)
             else:
-                row_values.append(row_data[header])
+                row_values.append(row_data.get(header,None))
         for index in range(0, len(row_values)):
             if row_values[index] == 'None':
                 row_values[index] = ''
@@ -957,21 +966,23 @@ class ViewAll(ttk.Treeview):
                 self.insert('', 'end', iid=counter, values=row_values)
                 counter += 1
 
+    def doubleclick_viewall(self, *args):
+        pass
+
     def print_(self):
         print('ViewAll Called')
 
 
 class MyView(tk.Frame):
-    def __init__(self, parent, data, mode, commands):
+    def __init__(self, parent, data, commands):
         super().__init__(parent)
-        self.mode = mode
         self.data = data
         self.parent = parent
         self.commands = commands
         """we put our Fields's widget in a dict"""
         self.Fields = {}
         for num, field in enumerate(self.data.fields.keys()):
-            if self.data.fields[field][self.mode]['visible']:
+            if self.data.fields[field][MODE]['visible']:
                 if self.data.fields[field]['type'] in ['Entry', 'DateEntry', 'Text', 'ComboboxEntry']:
                     self.Fields[field] = LabelEntry(self,
                                                     field, self.data)
@@ -1046,7 +1057,7 @@ class MyView(tk.Frame):
 
         self.update_idletasks()
 
-        if self.mode == "consultation":
+        if MODE == "consultation":
             self.button_save.configure(state="disabled")
             self.button_edit.configure(state="normal")
 
@@ -1057,7 +1068,7 @@ class MyView(tk.Frame):
     def trace_alarme(self, a, b, c):
         var = self.Fields['Alarme'].var.get()
 
-        if self.mode == 'modification':
+        if MODE == 'modification':
             value = None
             if var in ('', None, 'None'):
                 value = 'Note'
@@ -1156,7 +1167,6 @@ class ComplexFilter(tk.Frame):
 class MyApplication(tk.Tk):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.mode = "consultation"
         self.statu = 'Suivi'
         self.mdt = MyData()
         self.selected = None
@@ -1177,7 +1187,7 @@ class MyApplication(tk.Tk):
         fb.columnconfigure(4, weight=1)
 
         self.button_new = ttk.Button(fb, text="New log",
-                                     command=lambda: self.commands['new_log']("creation"))
+                                     command= lambda: self.commands['new_log']("creation"))
         self.combo_var_all_filter = tk.StringVar()
         self.combobox_all_filter = MyCombobox(fb,
                                               textvariable=self.combo_var_all_filter,
@@ -1362,10 +1372,10 @@ class MyApplication(tk.Tk):
 
     def save_entry(self):
         # to do : to refactor, make it cleaner
-        if self.mode == "creation":
+        if MODE == "creation":
             record = self.mv.get()
             values = [record[header] for header in self.mdt.fields.keys(
-            ) if self.mdt.fields[header][self.mode]['visible']]
+            ) if self.mdt.fields[header][MODE]['visible']]
 
             for field, value in record.items():
                 if value in ['', '\n']:
@@ -1396,7 +1406,7 @@ class MyApplication(tk.Tk):
                                      )
                 return
 
-            self.mdt.save_entry(record, self.mode)
+            self.mdt.save_entry(record)
 
             self.mv.reset()
             self.top1.destroy()
@@ -1406,15 +1416,18 @@ class MyApplication(tk.Tk):
             # we update viewall now with an updates log by assigning update_tree the right function
             # that will be called later
 
-            if self.statu == 'Tout' or self.statu == record['Status']:
+            if any([self.statu == 'Tout',
+                    self.statu == record['Status'],
+                    all([record['Status'] in ('En cours', 'Trop tard', 'Terminé','Suivi'), self.statu == 'Suivi'])
+                        ]):
                 update_tree = """self.viewall.insert('', 'end', iid=len(self.viewall.get_children())+1, values=values)"""
             else:
                 pass
 
-        elif self.mode == "modification":
+        elif MODE == "modification":
             record = self.mv.get()
             values = [record[header] for header in self.mdt.fields.keys(
-            ) if self.mdt.fields[header][self.mode]['visible']]
+            ) if self.mdt.fields[header][MODE]['visible']]
 
             # check if there is empty field in the modified record
             empty_req_fields = {}
@@ -1441,7 +1454,7 @@ class MyApplication(tk.Tk):
                 if log['Ref'] == ref:
                     self.records[num] = record
 
-            self.mdt.save_entry(self.records, self.mode)
+            self.mdt.save_entry(self.records)
 
             self.mv.reset()
             self.top1.destroy()
@@ -1451,13 +1464,17 @@ class MyApplication(tk.Tk):
             # we update viewall now with an updates log by assigning update_tree the right function
             # that will be called later
 
-            if self.statu == 'Tout' or self.statu == record['Status']:
+            if any([self.statu == 'Tout',
+                    self.statu == record['Status'],
+                    all([record['Status'] in ('En cours', 'Trop tard', 'Terminé','Suivi'), self.statu == 'Suivi']
+                        )
+                            ]):
                 update_tree = '''self.viewall.item(self.selected, text='', values=values)'''
             else:
                 update_tree = '''self.viewall.delete(self.selected)'''
 
         else:
-            self.mdt.save_entry(self.records, self.mode)
+            self.mdt.save_entry(self.records)
 
         self.records = self.mdt.load_records()
 
@@ -1466,7 +1483,7 @@ class MyApplication(tk.Tk):
         except:
             pass
 
-        if self.mode in ('modification', 'creation'):
+        if MODE in ('modification', 'creation'):
             messagebox.showinfo(
                 title="Information",
                 message="Sauvegarde réussie.")
@@ -1506,17 +1523,18 @@ class MyApplication(tk.Tk):
                         break
 
                 self.viewall.delete(selection)
-
-            self.mode = "delete"
+            global MODE
+            MODE = "delete"
             self.save_entry()
 
     def load_records(self):
         pass
 
-    def new_log(self, mode):
+    def new_log(self,mode):
+        global MODE
+        MODE = mode
         self.top1 = tk.Toplevel(self, name='top1')
-        self.mode = mode
-        self.mv = MyView(self.top1, self.mdt, self.mode, self.commands)
+        self.mv = MyView(self.top1, self.mdt, self.commands)
 
         self.top1.protocol('WM_DELETE_WINDOW',
                            lambda: self.quit_w(self.nametowidget('top1')))
@@ -1526,7 +1544,7 @@ class MyApplication(tk.Tk):
 
         self.mv.change_state("normal")
 
-        if mode == "consultation":
+        if MODE == "consultation":
             self.top1.title("Consulting log")
 
         else:
@@ -1552,8 +1570,9 @@ class MyApplication(tk.Tk):
         self.columnconfigure(0, weight=1)
 
     def doubleclick_viewall(self, *args):
-        self.mode = "consultation"
-        self.new_log("consultation")
+        global MODE
+        MODE = "consultation"
+        self.new_log(MODE)
 
         widget_focused = self.focus_get()
         widget_focused.print_()
@@ -1573,8 +1592,9 @@ class MyApplication(tk.Tk):
         print(self.mv.Fields['Alarme'].var.get())
 
     def mode_edit(self):
-        self.mode = "modification"
-        self.mv.mode = "modification"
+        global MODE
+        MODE = "modification"
+        #self.mv.mode = "modification"
 
         self.mv.change_state("normal")
         self.update()
@@ -1598,7 +1618,7 @@ class MyApplication(tk.Tk):
 
     def quit_w(self, w, save=False):
         # todo : w.destroy only once in this code
-        if self.mode in ("modification", "creation"):
+        if MODE in ("modification", "creation"):
             ##########
             try:
                 top1 = self.nametowidget('.top1')
@@ -1609,7 +1629,7 @@ class MyApplication(tk.Tk):
                     data = self.mv.get()
                     tests = []
                     # detecting if any field is not empty when creation or modifiation mode
-                    if self.mode == "creation":
+                    if MODE == "creation":
                         for key, value in data.items():
                             # todo : if date is diffenrete from today
                             # todo : if alarm is different from empty
@@ -1624,7 +1644,7 @@ class MyApplication(tk.Tk):
                             else:
                                 tests.append(False)
 
-                    elif self.mode == "modification":
+                    elif MODE == "modification":
                         for record in self.records:
                             if record['Ref'] == data['Ref']:
                                 for key, value in data.items():

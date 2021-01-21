@@ -11,3 +11,10 @@ ref0015;03/01/2021;new log i said 2021;{'Mampi': 1};{'Irmi': 1};None;Note
 ref0016;03/01/2021;hello again 2021;{'Estelle': 1, 'Mampi': 1, 'Williamson': 1};{'BNI': 1};None;Note
 ref0017;03/01/2021;sophiiiie wa;{'Mampi': 1};{'Irmi': 1};None;Note
 ref0018;04/01/2021;test implementation eval dans save_entry;{'Mampi': 1};{'Irmi': 1};None;Note
+ref0019;20/01/2021;look for chq;{'Estelle': 1, 'Mampi': 1, 'Santatra': 1};{'Directimmo': 1};30/01/2021;En cours;
+ref0020;21/01/2021;hello;{'FMF': 1, 'Mampi': 1};{'Roche Noire': 1};None;Note;
+ref0021;21/01/2021;hello;{'Jena': 1, 'Joe': 1, 'Mampi': 1};{'Roche Noire': 1};None;Note;
+ref0022;21/01/2021;go;{'Mampi': 1};{'Directimmo': 1};None;Note;
+ref0023;21/01/2021;hello world;{'FMF': 1};{'Roche Noire': 1};None;Note;None
+ref0024;21/01/2021;fin du mois;{'Estelle': 1, 'Mampi': 1, 'Mario': 1, 'Santatra': 1};{'Directimmo': 1};31/01/2021;En cours;None
+ref0025;21/01/2021;dernier cheque;{'FMF': 1, 'Mampi': 1};{'Roche Noire': 1};09/02/2021;En cours;None
