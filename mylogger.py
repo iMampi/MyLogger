@@ -906,11 +906,13 @@ class ViewAll(ttk.Treeview):
         self.model = model
         self.headers = self.model.fields.keys()
         self.commands = commands
+        self.sorted_ascending = 3
+
         # show="headings" make it so #0 column doesnt show
         self.configure(columns=[*self.headers], show="headings")
 
         for header in self.headers:
-            self.heading(header, text=header)
+            self.heading(header, text=header, command= lambda x=header: self.sorting(x))
             self.column(header, minwidth=self.model.fields[header]['width'],
                         width=self.model.fields[header]['width'], stretch=True)
 
@@ -1013,6 +1015,20 @@ class ViewAll(ttk.Treeview):
             print('set')
             SELECTED = True
             self.commands['onclick']()
+
+    def sorting(self,col):
+        #todo : implement a way to treat data diffenrently upon data type
+        itemlist = list(self.get_children(''))
+        if self.sorted_ascending in (3,0):
+            reverse=False
+            self.sorted_ascending = 1
+        else:
+            reverse=True
+            self.sorted_ascending = 0
+
+        itemlist.sort(key=lambda x: self.set(x, col),reverse=reverse)
+        for index, iid in enumerate(itemlist):
+            self.move(iid, self.parent(iid), index)
 
     def print_(self):
 
