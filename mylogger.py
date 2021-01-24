@@ -68,6 +68,10 @@ import itertools
 # done : MODE became a global variable
 ###commit 009###
 
+# done : added bind  one and double click method to Treeview
+# done : added commands attribut to treeview
+# done : global SELECTED
+##commit 010##
 
 # todo : compare the memory usage of the two approach for updating treeview . destroy populate vs update just 1 entry
 # todo : update function for update treeview (destroypopulate)
@@ -77,9 +81,8 @@ import itertools
 # todo : introduire tri en cliquant sur les colones
 # todo : move the onclick and double click method into the ViewAll class
 # todo : see if there other variable that we can/should turn into a global variable
-# todo : to move double clik into view all, must make application.mode into a global variable
 
-
+SELECTED=False
 MODE="consultation"
 FIELDS = {"Ref": {"type": 'Entry',
                   "creation": {"visible": True, "state": "normal"},
@@ -898,10 +901,11 @@ class LabelCheckbutton(tk.Frame):
 
 
 class ViewAll(ttk.Treeview):
-    def __init__(self, parent, model, *args, **kwargs):
+    def __init__(self, parent, model, commands, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
         self.model = model
         self.headers = self.model.fields.keys()
+        self.commands = commands
         # show="headings" make it so #0 column doesnt show
         self.configure(columns=[*self.headers], show="headings")
 
@@ -915,6 +919,29 @@ class ViewAll(ttk.Treeview):
         xbar = ttk.Scrollbar(parent, orient="horizontal", command=self.xview)
         self.configure(yscrollcommand=ybar.set, xscrollcommand=xbar.set)
         xbar.grid(row=1, column=0, sticky='swe')
+
+        # get the current bind tags
+        bindtags = list(self.bindtags())
+
+        # add our custom bind tag before the Canvas bind tag
+        index = bindtags.index("Treeview")
+        bindtags.insert(index,"ViewAll")
+
+        # save the bind tags back to the widget
+        self.bindtags(tuple(bindtags))
+
+        #must set focus on the widget.
+        #Otherwise, the first click will be considered being on
+        #"." and not on ".xx.!ViewAll", thus not working fully properly
+
+        self.focus_set()
+
+        #it worked great when calling directly from here
+        #self.bind('<1>',self.commands['onclick'])
+
+        self.bind('<1>',self.onclick)
+
+        self.bind('<Double-1>',self.doubleclick)
 
     def grid(self, *args, row=None, column=None, sticky='nswe', **kwargs):
         super().grid(*args, row=row, column=column, sticky=sticky, **kwargs)
@@ -966,10 +993,29 @@ class ViewAll(ttk.Treeview):
                 self.insert('', 'end', iid=counter, values=row_values)
                 counter += 1
 
-    def doubleclick_viewall(self, *args):
-        pass
+
+    def doubleclick(self, e):
+        global SELECTED
+        if SELECTED:
+            self.commands['doubleclick'](e)
+
+    def onclick(self,e):
+        global SELECTED
+        item = self.identify_row(e.y)
+        if item in self.selection():
+            self.selection_remove(item)
+            print('removed')
+            SELECTED = False
+            self.commands['onclick']()
+            return "break"
+        else:
+            self.selection_set(item)
+            print('set')
+            SELECTED = True
+            self.commands['onclick']()
 
     def print_(self):
+
         print('ViewAll Called')
 
 
@@ -1175,7 +1221,9 @@ class MyApplication(tk.Tk):
                          'new_log': self.new_log,
                          'mode_edit': self.mode_edit,
                          'quit_w': self.quit_w,
-                         'apply_complex_filter': self._show_complex_filter
+                         'apply_complex_filter': self._show_complex_filter,
+                         'onclick':self.onclick_viewall,
+                         'doubleclick':self.doubleclick_viewall
                          }
         self.records = self.mdt.load_records()
         fb = tk.Frame(self, relief='solid')
@@ -1226,7 +1274,7 @@ class MyApplication(tk.Tk):
         f.columnconfigure(0, weight=1)
         f.rowconfigure(0, weight=1)
 
-        self.viewall = ViewAll(f, self.mdt)
+        self.viewall = ViewAll(f, self.mdt,self.commands)
         self.viewall.grid(row=0, column=0, sticky='nswe')
         self.viewall.columnconfigure(0, weight=1)
         self.viewall.rowconfigure(0, weight=1)
@@ -1235,28 +1283,13 @@ class MyApplication(tk.Tk):
 
         self.update_idletasks()
 
-        self.viewall.bind('<1>', self.onclick_viewall)
-
-        self.viewall.bind('<Double-1>', self.doubleclick_viewall)
-
-        self.focus_set()
-
-    def onclick_viewall(self, e):
-        widget_focused = self.focus_get()
-        if not isinstance(widget_focused, ttk.Treeview):
-            return
-        item = widget_focused.identify_row(e.y)
-        if item in widget_focused.selection():
-            widget_focused.selection_remove(item)
-            self.selected = None
-            self.button_delete.configure(state="disabled")
-            """if your binding returns the string 'break', it will stop event propagation and thus prevent the default
-            behaviour for double clicking. You wont be able to use the event '<<TreeviewOpen>>', so you will have to 
-            use the event '<Double-1 instead>'"""
-            return "break"
-        else:
-            self.selected = item
+    def onclick_viewall(self):
+        global SELECTED
+        if SELECTED == True:
             self.button_delete.configure(state="normal")
+        else:
+            self.button_delete.configure(state="disabled")
+
 
     def complex_filter(self, *args):
         top5 = tk.Toplevel(name='top5')
@@ -1605,16 +1638,13 @@ class MyApplication(tk.Tk):
         filter_data = self.complex_wid.get()
         self.top4 = tk.Toplevel(self, name='top4')
         self.top4.title('Résultat')
-        tv = ViewAll(self.top4, self.mdt)
+        tv = ViewAll(self.top4, self.mdt, self.commands)
         tv.grid(row=0, column=0)
         mydata = self._filtering_data(filter_data, exclusif=True)
         top = self.nametowidget('.top5')
         top.destroy()
         tv.populate(mydata, statu='Tout')
 
-        tv.bind('<1>', self.onclick_viewall)
-
-        tv.bind('<Double-1>', self.doubleclick_viewall)
 
     def quit_w(self, w, save=False):
         # todo : w.destroy only once in this code
