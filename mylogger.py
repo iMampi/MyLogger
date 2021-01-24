@@ -1648,6 +1648,7 @@ class MyApplication(tk.Tk):
 
     def quit_w(self, w, save=False):
         # todo : w.destroy only once in this code
+        # todo : try to think about something using the bindtag here
         if MODE in ("modification", "creation"):
             ##########
             try:
@@ -1758,5 +1759,4 @@ class MyApplication(tk.Tk):
 
 if __name__ == '__main__':
     app = MyApplication()
-    # style=ttk.Style()
     app.mainloop()
