@@ -1,4 +1,4 @@
-import tkinter as tk
+﻿import tkinter as tk
 from tkinter import Label, ttk, messagebox, simpledialog
 import datetime as dt
 from tkcalendar import *
@@ -73,13 +73,14 @@ import itertools
 # done : global SELECTED
 ##commit 010##
 
+# done : introduire tri en cliquant sur les colones
+
+
 # todo : compare the memory usage of the two approach for updating treeview . destroy populate vs update just 1 entry
 # todo : update function for update treeview (destroypopulate)
 # todo : add linebreak when checkbox options doesnt fit in one line
 # todo : gestion des alarmes : ceux en cours, ceux passé, ceux terminés, récurrence,...
 # todo : introduire la récurrence po ur les alarme
-# todo : introduire tri en cliquant sur les colones
-# todo : move the onclick and double click method into the ViewAll class
 # todo : see if there other variable that we can/should turn into a global variable
 
 SELECTED=False
@@ -784,6 +785,8 @@ class LabelCheckbutton(tk.Frame):
 
         """creating multiple checkboxes"""
         for num, chckbt_label in enumerate(self.chckbt_labels):
+            
+
             if chckbt_label not in self.dict_chckbt.keys():
                 self.dict_chckbt[chckbt_label] = ttk.Checkbutton(self.FrameCheck,
                                                                  text=chckbt_label,
@@ -1026,9 +1029,46 @@ class ViewAll(ttk.Treeview):
             reverse=True
             self.sorted_ascending = 0
 
-        itemlist.sort(key=lambda x: self.set(x, col),reverse=reverse)
+        print('here values', self.set(0,'Alarme'))
+        itemlist.sort(key=lambda x: self.sort_formatting(x, col),reverse=reverse)
         for index, iid in enumerate(itemlist):
             self.move(iid, self.parent(iid), index)
+
+    def sort_formatting(self, id, col):
+        data = self.set(id, col)
+        if col in ('Date','Alarme'):
+            if testdate(data):
+                value=data
+            else:
+                value='01/01/0001'
+            x=dt.datetime.strptime(value, "%d/%m/%Y")
+
+        elif col == 'ETA':
+            if data !='0':
+                new=[]
+                
+                data=data.replace(" ","")
+                data=data.split(',')
+                for item in data:
+                    temp_=[]
+                    for char in item:
+                        if not char.isalpha() or char =='-':
+                            temp_.append(char)
+                    new.append(''.join(temp_))
+
+                y=int(float(new[1]))/24
+                x=int(new[0])+y
+            else:
+                x=int(float(data))
+
+        else:
+            x=data
+
+        return x
+
+
+
+
 
     def print_(self):
 
